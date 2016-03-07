@@ -103,11 +103,10 @@ template next(): expr {.immediate.} =
   else:
     inc(i, 2)
 
-
-proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string) =
+proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, start = 0) =
   ## Deserialize a JSON string to a `target`
   var
-    i = 1
+    i = start + 1
     endPos: int
     key: string
     tok: JsmnToken
@@ -117,7 +116,7 @@ proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json
   assert tokens[start].kind == JSMN_OBJECT
 
   ## TODn: sum all tokens of an object, then make it a while stopper
-  endPos = tokens[0].stop
+  endPos = tokens[start].stop
   while i < numTokens:
     tok = tokens[i]
     # when t.start greater than endPos, the token is out of current object
@@ -231,9 +230,9 @@ proc toBool*(node: JsonNode): bool {.inline.} =
   assert node.mapper.tokens[node.pos].kind == JSMN_PRIMITIVE
   loadValue(node.mapper.tokens, node.pos, node.mapper.numTokens, node.mapper.json, result)
 
-template toObj*(n: JsonNode): auto =
+proc toObj*[T](n: JsonNode): T {.inline.} =
   ## Map a JSMN_OBJECT node into a Nim object
-  loads(result, n.mapper.tokens, n.numTokens, n.mapper.json, n.pos)
+  #loads(result, n.mapper.tokens, n.mapper.numTokens, n.mapper.json, n.pos)
 
 iterator items*(n: JsonNode): JsonNode =
   ## Iterator for the items of an array node
@@ -293,10 +292,19 @@ proc dumps*[T](t: T, x: var string) =
         x.add ','
     x.add "}"
   elif t is string:
+    if t == nil:
+        x.add "null"
+        return
     x.add escapeJson(t)
   elif t is char:
+    if t == nil:
+        x.add "null"
+        return
     x.add "\"" & $t & "\""
   elif t is bool:
+    if t == nil:
+        x.add "null"
+        return
     if t:
       x.add "true"
     else:
