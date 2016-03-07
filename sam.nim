@@ -43,42 +43,43 @@ template getValue*(t: JsmnToken, json: string): expr =
   ## Returns a string present of token ``t``
   json[t.start..<t.stop]
 
-template loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
+proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, pos = 0)
+
+proc loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
   loads(v, t, numTokens, json, idx)
 
-template loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var bool): expr =
+proc loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var bool) {.inline.} =
   let value = t[idx].getValue(json)
   v = value[0] == 't'
 
-template loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var char): expr =
+proc loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var char) {.inline.} =
   let value = t[idx].getValue(json)
   if value.len > 0:
     v = value[0]
 
-template loadValue[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
+proc loadValue[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
   when v is int:
     v = parseInt(t[idx].getValue(json))
   else:
     v = (T)parseInt(t[idx].getValue(json))
 
-
-template loadValue[T: float|float32|float64|BiggestFloat](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
+proc loadValue[T: float|float32|float64|BiggestFloat](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
   when v is float:
     v = parseFloat(t[idx].getValue(json))
   else:
     v = (T)parseFloat(t[idx].getValue(json))
 
-template loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var string): expr =
+proc loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var string) {.inline.} =
   if t[idx].kind == JSMN_STRING:
     v = t[idx].getValue(json)
 
-template loadValue[T: enum](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
+proc loadValue[T: enum](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
   let value = t[idx].getValue(json)
   for e in low(v)..high(v):
     if $e == value:
       v = e
 
-template loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T): expr =
+proc loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
   when v is array:
     let size = v.len
   else:
@@ -92,31 +93,47 @@ template loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, numTokens: i
       let size = t[idx+1].size + 1
       loadValue(t, idx + 1 + x * size, numTokens, json, v[x])
 
-template next(): expr {.immediate.} =
-  let next = tokens[i+1]
-  if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT) and next.size > 0:
-    let child = tokens[i+2]
-    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
-      inc(i, next.size * (child.size + 1))  # skip whole array or object
-    else:
-      inc(i, next.size + 2)
-  else:
-    inc(i, 2)
+proc countChilds(tokens: openarray[JsmnToken], pos: int): int =
+  var
+    pos = pos
+    i = pos + 1
+  while true:
+    if pos >= tokens.len:
+      break
+    var next = tokens[pos]
+    if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT):
+      if next.size > 0:
+        inc(pos, next.size * (tokens[i+1].size + 1)
+      else:
+        break
 
-proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, start = 0) =
+
+template next(): expr {.immediate.} =
+  if i < tokens.len:
+    let next = tokens[i+1]
+    if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT) and next.size > 0:
+      let child = tokens[i+2]
+      if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
+        inc(i, 1 + next.size * (child.size + 1))  # skip whole array or object
+      else:
+        inc(i, next.size + 2)
+    else:
+      inc(i, 2)
+
+proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, pos = 0) =
   ## Deserialize a JSON string to a `target`
   var
-    i = start + 1
+    i = pos + 1
     endPos: int
     key: string
     tok: JsmnToken
 
-  #if tokens[start].kind != JSMN_OBJECT:
-  #  raise newException(ValueError, "Object expected " & $(tokens[start]))
-  assert tokens[start].kind == JSMN_OBJECT
+  #if tokens[pos].kind != JSMN_OBJECT:
+  #  raise newException(ValueError, "Object expected " & $(tokens[pos]))
+  assert tokens[pos].kind == JSMN_OBJECT
 
   ## TODn: sum all tokens of an object, then make it a while stopper
-  endPos = tokens[start].stop
+  endPos = tokens[pos].stop
   while i < numTokens:
     tok = tokens[i]
     # when t.start greater than endPos, the token is out of current object
@@ -149,23 +166,25 @@ proc parse*(json: string, tokens: seq[JsmnToken], numTokens: int): JsonNode =
   new(result)
   result.mapper = mapper
 
-proc findValue(m: Mapper, key: string, start = 0): int {.inline.} =
+proc findValue(m: Mapper, key: string, pos = 0): int {.inline.} =
+  echo key, ", ", pos
   result = -1
   var
-    i = start + 1
+    i = pos + 1
     tok: JsmnToken
   let
-    endPos = m.tokens[start].stop
+    endPos = m.tokens[pos].stop
     tokens = m.tokens
 
-  if m.tokens[start].kind != JSMN_OBJECT:
-    raise newException(ValueError, "Object expected " & $(m.tokens[start]))
+  if m.tokens[pos].kind != JSMN_OBJECT:
+    raise newException(ValueError, "Object expected " & $(m.tokens[pos]))
 
   while i < m.numTokens:
     tok = m.tokens[i]
     if tok.start >= endPos:
       raise newException(FieldError, key & " is not accessible")
 
+    echo "key: ", tok.getValue(m.json)
     if key == tok.getValue(m.json):
       result = i + 1
       break
@@ -232,7 +251,7 @@ proc toBool*(node: JsonNode): bool {.inline.} =
 
 proc toObj*[T](n: JsonNode): T {.inline.} =
   ## Map a JSMN_OBJECT node into a Nim object
-  #loads(result, n.mapper.tokens, n.mapper.numTokens, n.mapper.json, n.pos)
+  loads(result, n.mapper.tokens, n.mapper.numTokens, n.mapper.json, n.pos)
 
 iterator items*(n: JsonNode): JsonNode =
   ## Iterator for the items of an array node
@@ -297,14 +316,8 @@ proc dumps*[T](t: T, x: var string) =
         return
     x.add escapeJson(t)
   elif t is char:
-    if t == nil:
-        x.add "null"
-        return
     x.add "\"" & $t & "\""
   elif t is bool:
-    if t == nil:
-        x.add "null"
-        return
     if t:
       x.add "true"
     else:
