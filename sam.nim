@@ -93,21 +93,6 @@ proc loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, numTokens: int, 
       let size = t[idx+1].size + 1
       loadValue(t, idx + 1 + x * size, numTokens, json, v[x])
 
-proc countChilds(tokens: openarray[JsmnToken], pos: int): int =
-  var
-    pos = pos
-    i = pos + 1
-  while true:
-    if pos >= tokens.len:
-      break
-    var next = tokens[pos]
-    if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT):
-      if next.size > 0:
-        inc(pos, next.size * (tokens[i+1].size + 1)
-      else:
-        break
-
-
 template next(): expr {.immediate.} =
   if i < tokens.len:
     let next = tokens[i+1]
@@ -167,28 +152,24 @@ proc parse*(json: string, tokens: seq[JsmnToken], numTokens: int): JsonNode =
   result.mapper = mapper
 
 proc findValue(m: Mapper, key: string, pos = 0): int {.inline.} =
-  echo key, ", ", pos
   result = -1
   var
-    i = pos + 1
+    i = pos
     tok: JsmnToken
-  let
-    endPos = m.tokens[pos].stop
-    tokens = m.tokens
+    count = m.tokens[pos].size
 
   if m.tokens[pos].kind != JSMN_OBJECT:
     raise newException(ValueError, "Object expected " & $(m.tokens[pos]))
 
-  while i < m.numTokens:
+  while count > 0:
+    inc(i)
     tok = m.tokens[i]
-    if tok.start >= endPos:
-      raise newException(FieldError, key & " is not accessible")
 
-    echo "key: ", tok.getValue(m.json)
-    if key == tok.getValue(m.json):
-      result = i + 1
-      break
-    next()
+    if tok.parent == pos:
+      dec(count)
+      if key == tok.getValue(m.json):
+        result = i + 1
+        break
 
 proc `[]`*(n: JsonNode, key: string): JsonNode =
   ## Get a field from a json object, raises `FieldError` if field does not exists
