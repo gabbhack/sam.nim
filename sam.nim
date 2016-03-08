@@ -34,16 +34,23 @@ type
     tokens: seq[JsmnToken]
     json: string
     numTokens: int
+    stack: seq[int]
 
   JsonNode* = ref object
     mapper: Mapper
     pos: int
+
+{.push boundChecks: off, overflowChecks: off.}
 
 template getValue*(t: JsmnToken, json: string): expr =
   ## Returns a string present of token ``t``
   json[t.start..<t.stop]
 
 proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, pos = 0)
+
+proc loads*(target: var auto, json: string) =
+  var tokens = jsmn.parseJson(json)
+  target.loads(tokens, tokens.len, json)
 
 proc loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
   loads(v, t, numTokens, json, idx)
@@ -113,17 +120,15 @@ proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json
     key: string
     tok: JsmnToken
 
-  #if tokens[pos].kind != JSMN_OBJECT:
-  #  raise newException(ValueError, "Object expected " & $(tokens[pos]))
   assert tokens[pos].kind == JSMN_OBJECT
 
-  ## TODn: sum all tokens of an object, then make it a while stopper
   endPos = tokens[pos].stop
   while i < numTokens:
     tok = tokens[i]
     # when t.start greater than endPos, the token is out of current object
     if tok.start >= endPos:
       break
+
     assert tok.kind == JSMN_STRING
     key = tok.getValue(json)
     for n, v in fieldPairs(target):
@@ -137,6 +142,7 @@ proc parse*(json: string): JsonNode =
   mapper.tokens = parseJson(json)
   mapper.numTokens = mapper.tokens.len
   mapper.json = json
+  mapper.stack = @[]
 
   new(result)
   result.mapper = mapper
@@ -147,6 +153,7 @@ proc parse*(json: string, tokens: seq[JsmnToken], numTokens: int): JsonNode =
   mapper.tokens = tokens
   mapper.numTokens = numTokens
   mapper.json = json
+  mapper.stack = @[]
 
   new(result)
   result.mapper = mapper
@@ -158,30 +165,30 @@ proc findValue(m: Mapper, key: string, pos = 0): int {.inline.} =
     tok: JsmnToken
     count = m.tokens[pos].size
 
-  if m.tokens[pos].kind != JSMN_OBJECT:
-    raise newException(ValueError, "Object expected " & $(m.tokens[pos]))
+  assert m.tokens[pos].kind == JSMN_OBJECT
 
   while count > 0:
     inc(i)
     tok = m.tokens[i]
 
     if tok.parent == pos:
-      dec(count)
       if key == tok.getValue(m.json):
         result = i + 1
         break
+      dec(count)
 
-proc `[]`*(n: JsonNode, key: string): JsonNode =
+proc `[]`*(n: JsonNode, key: string): JsonNode {.inline, noSideEffect.} =
   ## Get a field from a json object, raises `FieldError` if field does not exists
   assert n.mapper.tokens[n.pos].kind == JSMN_OBJECT
-  new(result)
+  n.mapper.stack.add(n.pos)
+  result = n
   result.pos = n.mapper.findValue(key, n.pos)
-  result.mapper = n.mapper
 
-proc `[]`*(n: JsonNode, idx: int): JsonNode =
+proc `[]`*(n: JsonNode, idx: int): JsonNode {.inline, noSideEffect.} =
   ## Get a field from json array, raises `IndexError` if array is empty or index out of bounds
   assert n.mapper.tokens[n.pos].kind == JSMN_ARRAY
-  new(result)
+  n.mapper.stack.add(n.pos)
+  result = n
   if n.mapper.tokens[n.pos].size <= 0:
     raise newException(IndexError, "index out of bounds")
   let child = n.mapper.tokens[n.pos + 1]
@@ -192,8 +199,22 @@ proc `[]`*(n: JsonNode, idx: int): JsonNode =
       result.pos = n.pos + 1 + (1 + child.size) * idx
     else:
       result.pos = n.pos + idx
-  result.mapper = n.mapper
 
+proc `{}`*(n: JsonNode, i: int): JsonNode {.inline.} =
+  ## Traveral back the selection stack
+  var
+    i = i
+    pos: int
+  while i > 0:
+    pos = n.mapper.stack.pop()
+    dec(i)
+  result = n
+  result.pos = pos
+
+proc `{}`*(n: JsonNode): JsonNode {.inline.} =
+  ## Return the root node
+  result = n
+  result.pos = 0
 
 proc len*(n: JsonNode): int =
   ## Returns the number of elements in a json array
@@ -326,3 +347,5 @@ proc dumps*[T](t: T): string =
   ## Serialize `t` to a JSON formatted string
   result = newStringOfCap(sizeof(t) shl 1)
   dumps(t, result)
+
+{.pop.}
