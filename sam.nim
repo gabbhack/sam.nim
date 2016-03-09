@@ -131,9 +131,14 @@ proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json
 
     assert tok.kind == JSMN_STRING
     key = tok.getValue(json)
-    for n, v in fieldPairs(target):
-      if n == key:
-        loadValue(tokens, i+1, numTokens, json, v)
+    when target is ref:
+      for n, v in fieldPairs(target[]):
+        if n == key:
+          loadValue(tokens, i+1, numTokens, json, v)
+    else:
+      for n, v in fieldPairs(target):
+        if n == key:
+          loadValue(tokens, i+1, numTokens, json, v)
     next()
 
 proc parse*(json: string): JsonNode =
@@ -253,6 +258,8 @@ proc toBool*(node: JsonNode): bool {.inline.} =
 
 proc toObj*[T](n: JsonNode): T {.inline.} =
   ## Map a JSMN_OBJECT node into a Nim object
+  when result is ref:
+    new(result)
   loads(result, n.mapper.tokens, n.mapper.numTokens, n.mapper.json, n.pos)
 
 iterator items*(n: JsonNode): JsonNode =
@@ -340,6 +347,8 @@ proc dumps*[T](t: T, x: var string) =
     x.add "]"
   elif t is enum:
     x.add "\"" & $t & "\""
+  elif t is ref:
+    x.add $(t[])
   else:
     x.add $t
 
