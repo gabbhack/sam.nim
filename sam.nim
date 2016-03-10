@@ -46,100 +46,102 @@ template getValue*(t: JsmnToken, json: string): expr =
   ## Returns a string present of token ``t``
   json[t.start..<t.stop]
 
-proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, pos = 0)
+proc loads(target: var bool, m: Mapper, idx: int) {.inline.} =
+  let value = m.tokens[idx].getValue(m.json)
+  target = value[0] == 't'
+
+proc loads(target: var char, m: Mapper, idx: int) {.inline.} =
+  let value = m.tokens[idx].getValue(m.json)
+  if value.len > 0:
+    target = value[0]
+
+proc loads[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](target: var T, m: Mapper, idx: int) {.inline.} =
+  when T is int:
+    target = parseInt(m.tokens[idx].getValue(m.json))
+  else:
+    targer = (T)parseInt(m.tokens[idx].getValue(m.json))
+
+proc loads[T: float|float32|float64|BiggestFloat](target: var T, m: Mapper, idx: int) {.inline.} =
+  when T is float:
+    target = parseFloat(m.tokens[idx].getValue(m.json))
+  else:
+    target = (T)parseFloat(m.tokens[idx].getValue(m.json))
+
+proc loads(target: var string, m: Mapper, idx: int) {.inline.} =
+  if m.tokens[idx].kind == JSMN_STRING:
+    target = m.tokens[idx].getValue(m.json)
+
+proc loads[T: enum](target: var T, m: Mapper, idx: int) {.inline.} =
+  let value = m.tokens[idx].getValue(m.json)
+  for e in low(T)..high(T):
+    if $e == value:
+      target = e
+
+proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
+  when T is array:
+    let size = target.len
+  else:
+    let size = m.tokens[idx].size
+    newSeq(target, m.tokens[idx].size)
+  for x in 0..<size:
+    case m.tokens[idx + 1].kind
+    of JSMN_PRIMITIVE, JSMN_STRING:
+      loads(target[x], m, idx + 1 + x)
+    else:
+      let size = m.tokens[idx+1].size + 1
+      loads(target[x], m, idx + 1 + x * size)
+
+template next(): expr {.immediate.} =
+  let next = tokens[i+1]
+  if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT) and next.size > 0:
+    let child = tokens[i+2]
+    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
+      inc(i, 1 + next.size * (child.size + 1))  # skip whole array or object
+    else:
+      inc(i, next.size + 2)
+  else:
+    inc(i, 2)
+
+proc findValue(m: Mapper, key: string, pos = 0): int {.inline.} =
+  result = -1
+  var
+    i = pos
+    tok: JsmnToken
+    count = m.tokens[pos].size
+
+  assert m.tokens[pos].kind == JSMN_OBJECT
+
+  while count > 0:
+    inc(i)
+    tok = m.tokens[i]
+
+    if tok.parent == pos:
+      if key == tok.getValue(m.json):
+        result = i + 1
+        break
+      dec(count)
+
+proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
+  ## Deserialize a JSON string to `target`
+  assert m.tokens[pos].kind == JSMN_OBJECT
+  var
+    i: int
+    tok: JsmnToken
+  for n, v in fieldPairs(target):
+    i = findValue(m, n, pos)
+    if i > pos:
+      loads(v, m, i)
+
+proc loads*[T: ref](target: T, m: Mapper, pos = 0) {.inline.} =
+  loads(target[], m, pos)
 
 proc loads*(target: var auto, json: string) =
   var tokens = jsmn.parseJson(json)
-  target.loads(tokens, tokens.len, json)
-
-proc loadValue[T: object|tuple](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
-  loads(v, t, numTokens, json, idx)
-
-proc loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var bool) {.inline.} =
-  let value = t[idx].getValue(json)
-  v = value[0] == 't'
-
-proc loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var char) {.inline.} =
-  let value = t[idx].getValue(json)
-  if value.len > 0:
-    v = value[0]
-
-proc loadValue[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
-  when v is int:
-    v = parseInt(t[idx].getValue(json))
-  else:
-    v = (T)parseInt(t[idx].getValue(json))
-
-proc loadValue[T: float|float32|float64|BiggestFloat](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
-  when v is float:
-    v = parseFloat(t[idx].getValue(json))
-  else:
-    v = (T)parseFloat(t[idx].getValue(json))
-
-proc loadValue(t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var string) {.inline.} =
-  if t[idx].kind == JSMN_STRING:
-    v = t[idx].getValue(json)
-
-proc loadValue[T: enum](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
-  let value = t[idx].getValue(json)
-  for e in low(v)..high(v):
-    if $e == value:
-      v = e
-
-proc loadValue[T: array|seq](t: openarray[JsmnToken], idx: int, numTokens: int, json: string, v: var T) {.inline.} =
-  when v is array:
-    let size = v.len
-  else:
-    let size = t[idx].size
-    newSeq(v, t[idx].size)
-  for x in 0..<size:
-    case t[idx + 1].kind
-    of JSMN_PRIMITIVE, JSMN_STRING:
-      loadValue(t, idx + 1 + x, numTokens, json, v[x])
-    else:
-      let size = t[idx+1].size + 1
-      loadValue(t, idx + 1 + x * size, numTokens, json, v[x])
-
-template next(): expr {.immediate.} =
-  if i < tokens.len:
-    let next = tokens[i+1]
-    if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT) and next.size > 0:
-      let child = tokens[i+2]
-      if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
-        inc(i, 1 + next.size * (child.size + 1))  # skip whole array or object
-      else:
-        inc(i, next.size + 2)
-    else:
-      inc(i, 2)
-
-proc loads*(target: var auto, tokens: openarray[JsmnToken], numTokens: int, json: string, pos = 0) =
-  ## Deserialize a JSON string to a `target`
-  var
-    i = pos + 1
-    endPos: int
-    key: string
-    tok: JsmnToken
-
-  assert tokens[pos].kind == JSMN_OBJECT
-
-  endPos = tokens[pos].stop
-  while i < numTokens:
-    tok = tokens[i]
-    # when t.start greater than endPos, the token is out of current object
-    if tok.start >= endPos:
-      break
-
-    assert tok.kind == JSMN_STRING
-    key = tok.getValue(json)
-    when target is ref:
-      for n, v in fieldPairs(target[]):
-        if n == key:
-          loadValue(tokens, i+1, numTokens, json, v)
-    else:
-      for n, v in fieldPairs(target):
-        if n == key:
-          loadValue(tokens, i+1, numTokens, json, v)
-    next()
+  var mapper: Mapper
+  mapper.tokens = parseJson(json)
+  mapper.numTokens = mapper.tokens.len
+  mapper.json = json
+  loads(target, mapper)
 
 proc parse*(json: string): JsonNode =
   ## Parse JSON string and returns a `JsonNode`
@@ -162,25 +164,6 @@ proc parse*(json: string, tokens: seq[JsmnToken], numTokens: int): JsonNode =
 
   new(result)
   result.mapper = mapper
-
-proc findValue(m: Mapper, key: string, pos = 0): int {.inline.} =
-  result = -1
-  var
-    i = pos
-    tok: JsmnToken
-    count = m.tokens[pos].size
-
-  assert m.tokens[pos].kind == JSMN_OBJECT
-
-  while count > 0:
-    inc(i)
-    tok = m.tokens[i]
-
-    if tok.parent == pos:
-      if key == tok.getValue(m.json):
-        result = i + 1
-        break
-      dec(count)
 
 proc `[]`*(n: JsonNode, key: string): JsonNode {.inline, noSideEffect.} =
   ## Get a field from a json object, raises `FieldError` if field does not exists
@@ -239,28 +222,28 @@ proc hasKey*(n: JsonNode, key: string): bool =
 proc toStr*(node: JsonNode): string {.inline.} =
   ## Retrieves the string value of a JSMN_STRING node
   assert node.mapper.tokens[node.pos].kind == JSMN_STRING
-  loadValue(node.mapper.tokens, node.pos, node.mapper.numTokens, node.mapper.json, result)
+  loads(result, node.mapper, node.pos)
 
 proc toInt*(node: JsonNode): int {.inline.} =
   ## Retrieves the int value of a JSMN_PRIMITIVE node
   assert node.mapper.tokens[node.pos].kind == JSMN_PRIMITIVE
-  loadValue(node.mapper.tokens, node.pos, node.mapper.numTokens, node.mapper.json, result)
+  loads(result, node.mapper, node.pos)
 
 proc toFloat*(node: JsonNode): float {.inline.} =
   ## Retrieves the float value of a JSMN_PRIMITIVE node
   assert node.mapper.tokens[node.pos].kind == JSMN_PRIMITIVE
-  loadValue(node.mapper.tokens, node.pos, node.mapper.numTokens, node.mapper.json, result)
+  loads(result, node.mapper, node.pos)
 
 proc toBool*(node: JsonNode): bool {.inline.} =
   ## Retrieves the bool value of a JSMN_PRIMITIVE node
   assert node.mapper.tokens[node.pos].kind == JSMN_PRIMITIVE
-  loadValue(node.mapper.tokens, node.pos, node.mapper.numTokens, node.mapper.json, result)
+  loads(result, node.mapper, node.pos)
 
-proc toObj*[T](n: JsonNode): T {.inline.} =
+proc toObj*[T](n: JsonNode): T =
   ## Map a JSMN_OBJECT node into a Nim object
   when result is ref:
     new(result)
-  loads(result, n.mapper.tokens, n.mapper.numTokens, n.mapper.json, n.pos)
+  loads(result, n.mapper, n.pos)
 
 iterator items*(n: JsonNode): JsonNode =
   ## Iterator for the items of an array node
@@ -306,18 +289,17 @@ iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
 
 proc dumps*[T](t: T, x: var string) =
   ## Serialize `t` into `x`
+  var first = true
   when t is object or t is tuple:
     x.add "{"
-    var i = 0
     for n, v in fieldPairs(t):
-      inc(i)
-    for n, v in fieldPairs(t):
-      dec(i)
+      if first:
+        first = false
+      else:
+        x.add ","
       x.add "\"" & n & "\""
       x.add ":"
       dumps(v, x)
-      if i > 0:
-        x.add ','
     x.add "}"
   elif t is string:
     if t == nil:
@@ -336,23 +318,22 @@ proc dumps*[T](t: T, x: var string) =
       if t == nil:
         x.add "null"
         return
-
     x.add "["
-    var i = t.len
     for e in t:
-      dec(i)
-      dumps(e, x)
-      if i > 0:
+      if first:
+        first = false
+      else:
         x.add ","
+      dumps(e, x)
     x.add "]"
   elif t is enum:
     x.add "\"" & $t & "\""
-  elif t is ref:
-    x.add $(t[])
+  elif t is ref or t is pointer:
+    dumps(t[], x)
   else:
     x.add $t
 
-proc dumps*[T](t: T): string =
+proc dumps*(t: auto): string =
   ## Serialize `t` to a JSON formatted string
   result = newStringOfCap(sizeof(t) shl 1)
   dumps(t, result)
