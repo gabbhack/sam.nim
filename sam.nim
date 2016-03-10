@@ -126,7 +126,6 @@ proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
   assert m.tokens[pos].kind == JSMN_OBJECT
   var
     i: int
-    tok: JsmnToken
   for n, v in fieldPairs(target):
     i = findValue(m, n, pos)
     if i > pos:
@@ -136,7 +135,6 @@ proc loads*[T: ref](target: T, m: Mapper, pos = 0) {.inline.} =
   loads(target[], m, pos)
 
 proc loads*(target: var auto, json: string) =
-  var tokens = jsmn.parseJson(json)
   var mapper: Mapper
   mapper.tokens = parseJson(json)
   mapper.numTokens = mapper.tokens.len
@@ -289,8 +287,9 @@ iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
 
 proc dumps*[T](t: T, x: var string) =
   ## Serialize `t` into `x`
-  var first = true
+
   when t is object or t is tuple:
+    var first = true
     x.add "{"
     for n, v in fieldPairs(t):
       if first:
@@ -314,6 +313,7 @@ proc dumps*[T](t: T, x: var string) =
     else:
       x.add "false"
   elif t is array or t is seq:
+    var first = true
     when t is seq:
       if t == nil:
         x.add "null"
