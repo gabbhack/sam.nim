@@ -130,24 +130,31 @@ proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline, noSide
   ## Deserialize a JSON string to `target`
   assert m.tokens[pos].kind == JSMN_OBJECT
   var
-    i = pos
+    i = pos + 1
     tok: JsmnToken
     count = m.tokens[pos].size
     key: string
+    match: bool
 
   while count > 0:
-    inc(i)
+    match = false
     tok = m.tokens[i]
     if tok.parent == pos:
       assert tok.kind == JSMN_STRING
-      dec(count)
       key = tok.getValue(m.json)
       for n, v in fieldPairs(target):
         if n == key:
-          inc(i, tok.size+1)
-          dec(count)
-          loads(v, m, i)
+          match = true
+          loads(v, m, i+1)
           break
+      if match:
+        inc(i, tok.size+2)
+      else:
+        inc(i, 2)
+      dec(count, 2)
+    else:
+      inc(i)
+
 
 proc loads*[T: ref](target: T, m: Mapper, pos = 0) {.inline.} =
   loads(target[], m, pos)
