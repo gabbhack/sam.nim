@@ -55,13 +55,13 @@ proc loads(target: var char, m: Mapper, idx: int) {.inline.} =
   if value.len > 0:
     target = value[0]
 
-proc loads[T: int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|BiggestInt](target: var T, m: Mapper, idx: int) {.inline.} =
+proc loads[T: SomeInteger|BiggestInt](target: var T, m: Mapper, idx: int) {.inline.} =
   when T is int:
     target = parseInt(m.tokens[idx].getValue(m.json))
   else:
     targer = (T)parseInt(m.tokens[idx].getValue(m.json))
 
-proc loads[T: float|float32|float64|BiggestFloat](target: var T, m: Mapper, idx: int) {.inline.} =
+proc loads[T: SomeReal|BiggestFloat](target: var T, m: Mapper, idx: int) {.inline.} =
   when T is float:
     target = parseFloat(m.tokens[idx].getValue(m.json))
   else:
