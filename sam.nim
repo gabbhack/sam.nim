@@ -76,6 +76,7 @@ proc loads[T: enum](target: var T, m: Mapper, idx: int) {.inline.} =
   for e in low(T)..high(T):
     if $e == value:
       target = e
+      break
 
 proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
   when T is array:
@@ -102,41 +103,60 @@ template next(): expr {.immediate.} =
   else:
     inc(i, 2)
 
-proc findValue(m: Mapper, key: string, pos = 0): int {.inline.} =
-  result = -1
+iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.noSideEffect.} =
   var
-    i = pos
-    tok: JsmnToken
-    count = m.tokens[pos].size
+    i = parent
+    tok: JsmnTOken
+    count = m.tokens[parent].size
 
-  assert m.tokens[pos].kind == JSMN_OBJECT
-
+  assert m.tokens[parent].kind == JSMN_OBJECT
   while count > 0:
     inc(i)
     tok = m.tokens[i]
 
-    if tok.parent == pos:
-      if key == tok.getValue(m.json):
-        result = i + 1
-        break
+    if tok.parent == parent:
+      yield (tok, i)
       dec(count)
 
-proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
+proc findValue(m: Mapper, key: string, pos = 0): int {.inline, noSideEffect.} =
+  #debugEcho "find: ", key
+  result = -1
+  for node in m.children(pos):
+    if key == node.token.getValue(m.json):
+      result = node.pos + 1
+      break
+
+proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline, noSideEffect.} =
   ## Deserialize a JSON string to `target`
   assert m.tokens[pos].kind == JSMN_OBJECT
   var
-    i: int
-  for n, v in fieldPairs(target):
-    i = findValue(m, n, pos)
-    if i > pos:
-      loads(v, m, i)
+    i = pos
+    tok: JsmnToken
+    count = m.tokens[pos].size
+    key: string
+
+  while count > 0:
+    inc(i)
+    tok = m.tokens[i]
+    if tok.parent == pos:
+      assert tok.kind == JSMN_STRING
+      dec(count)
+      key = tok.getValue(m.json)
+      for n, v in fieldPairs(target):
+        if n == key:
+          inc(i, tok.size+1)
+          dec(count)
+          loads(v, m, i)
+          break
+
+
 
 proc loads*[T: ref](target: T, m: Mapper, pos = 0) {.inline.} =
   loads(target[], m, pos)
 
 proc loads*(target: var auto, json: string) =
   var mapper: Mapper
-  mapper.tokens = parseJson(json)
+  mapper.tokens = jsmn.parseJson(json)
   mapper.numTokens = mapper.tokens.len
   mapper.json = json
   loads(target, mapper)
@@ -144,7 +164,7 @@ proc loads*(target: var auto, json: string) =
 proc parse*(json: string): JsonNode =
   ## Parse JSON string and returns a `JsonNode`
   var mapper: Mapper
-  mapper.tokens = parseJson(json)
+  mapper.tokens = jsmn.parseJson(json)
   mapper.numTokens = mapper.tokens.len
   mapper.json = json
   mapper.stack = @[]
