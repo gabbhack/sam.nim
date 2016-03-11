@@ -149,8 +149,6 @@ proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline, noSide
           loads(v, m, i)
           break
 
-
-
 proc loads*[T: ref](target: T, m: Mapper, pos = 0) {.inline.} =
   loads(target[], m, pos)
 
