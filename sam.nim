@@ -155,7 +155,6 @@ proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline, noSide
     else:
       inc(i)
 
-
 proc loads*[T: ref](target: T, m: Mapper, pos = 0) {.inline.} =
   loads(target[], m, pos)
 
@@ -351,6 +350,7 @@ proc dumps*[T](t: T, x: var string) =
         x.add ","
       dumps(e, x)
     x.add "]"
+
   elif t is enum:
     x.add "\"" & $t & "\""
   elif t is ref or t is pointer:
@@ -362,5 +362,29 @@ proc dumps*(t: auto): string =
   ## Serialize `t` to a JSON formatted string
   result = newStringOfCap(sizeof(t) shl 1)
   dumps(t, result)
+
+import macros
+proc toJson(x: NimNode): NimNode {.compileTime} =
+  echo x.kind
+  case x.kind
+  of nnkBracket:
+    result = newNimNode(nnkBracket)
+    for i in 0 .. <x.len:
+      result.add(toJson(x[i]))
+  of nnkTableConstr:
+    result = newPar()
+    for i in 0 .. <x.len:
+      assert x[i].kind == nnkExprColonExpr
+      #result.add(x[i])
+      result.add(newNimNode(nnkExprColonExpr).add(x[i][0]).add(toJson(x[i][1])))
+  else:
+    result = x
+  result = newCall(newIdentNode("dumps"), result)
+
+  echo treeRepr(result)
+
+macro `$$`*(x: expr): expr =
+  toJson(x)
+
 
 {.pop.}
