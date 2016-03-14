@@ -26,7 +26,7 @@
 ##  nimble install sam
 ##
 
-import jsmn, strutils
+import jsmn, strutils, macros
 from json import escapeJson
 
 type
@@ -309,9 +309,8 @@ iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
 
     next()
 
-proc dumps*[T](t: T, x: var string) =
+proc dumps*(t: auto, x: var string) =
   ## Serialize `t` into `x`
-
   when t is object or t is tuple:
     var first = true
     x.add "{"
@@ -359,32 +358,43 @@ proc dumps*[T](t: T, x: var string) =
     x.add $t
 
 proc dumps*(t: auto): string =
-  ## Serialize `t` to a JSON formatted string
+  ## Serialize `t` to a JSON formatted
   result = newStringOfCap(sizeof(t) shl 1)
   dumps(t, result)
 
-import macros
-proc toJson(x: NimNode): NimNode {.compileTime} =
-  echo x.kind
+proc `%`(x: NimNode): NimNode {.compileTime.} =
+  discard
+
+proc toJson(x: NimNode, first = false): NimNode {.compileTime.} =
+  var left, right: NimNode
   case x.kind
   of nnkBracket:
     result = newNimNode(nnkBracket)
     for i in 0 .. <x.len:
       result.add(toJson(x[i]))
   of nnkTableConstr:
-    result = newPar()
+    result = newNimNode(nnkPar)
     for i in 0 .. <x.len:
       assert x[i].kind == nnkExprColonExpr
-      #result.add(x[i])
-      result.add(newNimNode(nnkExprColonExpr).add(x[i][0]).add(toJson(x[i][1])))
+      if x[i][0].kind == nnkStrLit:
+        left = newIdentNode(strVal(x[i][0]))
+      else:
+        left = x[i][0]
+      right = toJson(x[i][1])
+      result.add(newNimNode(nnkExprColonExpr).add(left).add(right))
+  of nnkIdent:
+    result = prefix(x, "%")
   else:
     result = x
-  result = newCall(newIdentNode("dumps"), result)
 
-  echo treeRepr(result)
+  if first:
+    #result = newAssignment(newIdentNode("x"), newCall(newIdentNode("dumps"), result))
+    result = newCall(newIdentNode("dumps"), result)
+    echo "--------------------------"
+    echo treeRepr(result)
+
 
 macro `$$`*(x: expr): expr =
-  toJson(x)
-
+  toJson(x, true)
 
 {.pop.}
