@@ -40,6 +40,8 @@ type
     mapper: Mapper
     pos: int
 
+  JsonRaw* = distinct string
+
 {.push boundChecks: off, overflowChecks: off.}
 
 template getValue*(t: JsmnToken, json: string): expr =
@@ -354,6 +356,8 @@ proc dumps*(t: auto, x: var string) =
     x.add "\"" & $t & "\""
   elif t is ref or t is pointer:
     dumps(t[], x)
+  elif t is JsonRaw:
+    x.add t.string
   else:
     x.add $t
 
@@ -362,16 +366,17 @@ proc dumps*(t: auto): string =
   result = newStringOfCap(sizeof(t) shl 1)
   dumps(t, result)
 
-proc `%`(x: NimNode): NimNode {.compileTime.} =
-  discard
+proc `%`*(x: auto): JsonRaw {.inline.} =
+  ## Convert `x` to a raw json string (JsonRaw is not wrapped when added to json string)
+  (JsonRaw)dumps(x)
 
-proc toJson(x: NimNode, first = false): NimNode {.compileTime.} =
+proc stringify(x: NimNode, top = false): NimNode {.compileTime.} =
   var left, right: NimNode
   case x.kind
   of nnkBracket:
     result = newNimNode(nnkBracket)
     for i in 0 .. <x.len:
-      result.add(toJson(x[i]))
+      result.add(stringify(x[i]))
   of nnkTableConstr:
     result = newNimNode(nnkPar)
     for i in 0 .. <x.len:
@@ -380,21 +385,17 @@ proc toJson(x: NimNode, first = false): NimNode {.compileTime.} =
         left = newIdentNode(strVal(x[i][0]))
       else:
         left = x[i][0]
-      right = toJson(x[i][1])
+      right = stringify(x[i][1])
       result.add(newNimNode(nnkExprColonExpr).add(left).add(right))
-  of nnkIdent:
-    result = prefix(x, "%")
   else:
     result = x
-
-  if first:
-    #result = newAssignment(newIdentNode("x"), newCall(newIdentNode("dumps"), result))
+  if top:
     result = newCall(newIdentNode("dumps"), result)
-    echo "--------------------------"
-    echo treeRepr(result)
-
+    #echo "--------------------------"
+    #echo treeRepr(result)
 
 macro `$$`*(x: expr): expr =
-  toJson(x, true)
+  ## Convert anything to a json stirng
+  stringify(x, true)
 
 {.pop.}
