@@ -40,7 +40,7 @@ type
     mapper: Mapper
     pos: int
 
-  JsonRaw* = distinct string
+  JsonRaw* {.borrow: `.`.} = distinct string
 
 {.push boundChecks: off, overflowChecks: off.}
 
@@ -61,7 +61,7 @@ proc loads[T: SomeInteger|BiggestInt](target: var T, m: Mapper, idx: int) {.inli
   when T is int:
     target = parseInt(m.tokens[idx].getValue(m.json))
   else:
-    targer = (T)parseInt(m.tokens[idx].getValue(m.json))
+    target = (T)parseInt(m.tokens[idx].getValue(m.json))
 
 proc loads[T: SomeReal|BiggestFloat](target: var T, m: Mapper, idx: int) {.inline.} =
   when T is float:
@@ -128,6 +128,12 @@ proc findValue(m: Mapper, key: string, pos = 0): int {.inline, noSideEffect.} =
       result = node.pos + 1
       break
 
+proc loads(target: var JsonNode, m: Mapper, idx: int) {.inline.} =
+  new(target)
+  target.mapper = m
+  target.pos = idx
+
+
 proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline, noSideEffect.} =
   ## Deserialize a JSON string to `target`
   assert m.tokens[pos].kind == JSMN_OBJECT
@@ -147,7 +153,10 @@ proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline, noSide
       for n, v in fieldPairs(target):
         if n == key:
           match = true
-          loads(v, m, i+1)
+          try:
+            loads(v, m, i+1)
+          except:
+            raise newException(ValueError, "invalid data for: " & n)
           break
       if match:
         inc(i, tok.size+2)
@@ -339,10 +348,10 @@ proc dumps*(t: auto, x: var string) =
       x.add "false"
   elif t is array or t is seq:
     var first = true
-    when t is seq:
-      if t == nil:
-        x.add "null"
-        return
+    when compiles(t == nil):
+        if t == nil:
+          x.add "null"
+          return
     x.add "["
     for e in t:
       if first:
