@@ -108,7 +108,7 @@ template next(): expr {.immediate.} =
 iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.noSideEffect.} =
   var
     i = parent
-    tok: JsmnTOken
+    tok: JsmnToken
     count = m.tokens[parent].size
 
   assert m.tokens[parent].kind == JSMN_OBJECT
@@ -174,6 +174,7 @@ proc loads*(target: var auto, json: string) =
   mapper.tokens = jsmn.parseJson(json)
   mapper.numTokens = mapper.tokens.len
   mapper.json = json
+  mapper.stack = @[]
   loads(target, mapper)
 
 proc parse*(json: string): JsonNode =
@@ -408,3 +409,15 @@ macro `$$`*(x: expr): expr =
   stringify(x, true)
 
 {.pop.}
+
+proc isObject*(n: JsonNode): bool =
+  n.mapper.tokens[n.pos].kind == JSMN_OBJECT
+
+proc isArray*(n: JsonNode): bool =
+  n.mapper.tokens[n.pos].kind == JSMN_ARRAY
+
+proc isString*(n: JsonNode): bool =
+  n.mapper.tokens[n.pos].kind == JSMN_STRING
+
+proc isPrimitive*(n: JsonNode): bool =
+  n.mapper.tokens[n.pos].kind == JSMN_PRIMITIVE
