@@ -1,4 +1,4 @@
-import ../sam, marshal
+import ../sam
 
 type
   Status = enum

@@ -81,18 +81,26 @@ proc loads[T: enum](target: var T, m: Mapper, idx: int) {.inline.} =
       break
 
 proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
+  assert m.tokens[idx].kind == JSMN_ARRAY
   when T is array:
     let size = target.len
   else:
     let size = m.tokens[idx].size
     newSeq(target, m.tokens[idx].size)
-  for x in 0..<size:
-    case m.tokens[idx + 1].kind
+
+  var
+    i = idx + 1
+    x = 0
+    tok = m.tokens[i]
+    count = m.tokens[idx].size
+
+  while x < count:
+    case tok.kind
     of JSMN_PRIMITIVE, JSMN_STRING:
-      loads(target[x], m, idx + 1 + x)
+      loads(target[x], m, i + x)
     else:
-      let size = m.tokens[idx+1].size + 1
-      loads(target[x], m, idx + 1 + x * size)
+      loads(target[x], m, i + x * (tok.size + 1))
+    inc(x)
 
 template next(): expr {.immediate.} =
   let next = tokens[i+1]
@@ -121,7 +129,6 @@ iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.no
       dec(count)
 
 proc findValue(m: Mapper, key: string, pos = 0): int {.inline, noSideEffect.} =
-  #debugEcho "find: ", key
   result = -1
   for node in m.children(pos):
     if key == node.token.getValue(m.json):
@@ -134,7 +141,7 @@ proc loads(target: var JsonNode, m: Mapper, idx: int) {.inline.} =
   target.pos = idx
 
 
-proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline, noSideEffect.} =
+proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
   ## Deserialize a JSON string to `target`
   assert m.tokens[pos].kind == JSMN_OBJECT
   var
@@ -168,6 +175,9 @@ proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline, noSide
 
 proc loads*[T: ref](target: T, m: Mapper, pos = 0) {.inline.} =
   loads(target[], m, pos)
+
+proc loads*(target: var auto, n: JsonNode) {.inline.} =
+  loads(target, n.mapper, n.pos)
 
 proc loads*(target: var auto, json: string) =
   var mapper: Mapper
@@ -401,8 +411,6 @@ proc stringify(x: NimNode, top = false): NimNode {.compileTime.} =
     result = x
   if top:
     result = newCall(newIdentNode("dumps"), result)
-    #echo "--------------------------"
-    #echo treeRepr(result)
 
 macro `$$`*(x: expr): expr =
   ## Convert anything to a json stirng
