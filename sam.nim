@@ -86,7 +86,8 @@ proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
     let size = target.len
   else:
     let size = m.tokens[idx].size
-    newSeq(target, m.tokens[idx].size)
+    if target.isNil:
+      newSeq(target, m.tokens[idx].size)
 
   var
     i = idx + 1
@@ -99,7 +100,7 @@ proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
     of JSMN_PRIMITIVE, JSMN_STRING:
       loads(target[x], m, i + x)
     else:
-      loads(target[x], m, i + x * (tok.size + 1))
+      loads(target[x], m, i + x  * tok.size)
     inc(x)
 
 template next(): expr {.immediate.} =
@@ -143,6 +144,7 @@ proc loads(target: var JsonNode, m: Mapper, idx: int) {.inline.} =
 
 proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
   ## Deserialize a JSON string to `target`
+  echo m.tokens[pos], ", ", getValue(m.tokens[pos], m.json)
   assert m.tokens[pos].kind == JSMN_OBJECT
   var
     i = pos + 1
