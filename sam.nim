@@ -52,21 +52,26 @@ proc `$`*(n: JsonNode): string =
   getValue(n.mapper.tokens[n.pos], n.mapper.json)
 
 proc loads(target: var bool, m: Mapper, idx: int) {.inline.} =
+  assert m.tokens[idx].kind == JSMN_PRIMITIVE
   let value = m.tokens[idx].getValue(m.json)
   target = value[0] == 't'
 
 proc loads(target: var char, m: Mapper, idx: int) {.inline.} =
+  assert m.tokens[idx].kind == JSMN_STRING
   let value = m.tokens[idx].getValue(m.json)
   if value.len > 0:
     target = value[0]
 
 proc loads[T: SomeInteger|BiggestInt](target: var T, m: Mapper, idx: int) {.inline.} =
+  assert m.tokens[idx].kind == JSMN_PRIMITIVE
+  let value = m.tokens[idx].getValue(m.json)
   when T is int:
-    target = parseInt(m.tokens[idx].getValue(m.json))
+    target = parseInt(value)
   else:
-    target = (T)parseInt(m.tokens[idx].getValue(m.json))
+    target = (T)parseInt(value)
 
 proc loads[T: SomeReal|BiggestFloat](target: var T, m: Mapper, idx: int) {.inline.} =
+  assert m.tokens[idx].kind == JSMN_PRIMITIVE
   when T is float:
     target = parseFloat(m.tokens[idx].getValue(m.json))
   else:
@@ -77,6 +82,7 @@ proc loads(target: var string, m: Mapper, idx: int) {.inline.} =
     target = m.tokens[idx].getValue(m.json)
 
 proc loads[T: enum](target: var T, m: Mapper, idx: int) {.inline.} =
+  assert m.tokens[idx].kind == JSMN_STRING
   let value = m.tokens[idx].getValue(m.json)
   for e in low(T)..high(T):
     if $e == value:
@@ -95,16 +101,23 @@ proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
   var
     i = idx + 1
     x = 0
-    tok = m.tokens[i]
+    tok: JsmnToken
     count = m.tokens[idx].size
+    kind = m.tokens[i].kind
 
   while x < count:
-    case tok.kind
+    tok = m.tokens[i]
+    when defined(verbose):
+      echo i, " ", tok.parent, " ", idx, " ", tok, " ", getValue(tok, m.json)
+    if tok.parent != idx:
+      inc(i)
+      continue
+    case kind
     of JSMN_PRIMITIVE, JSMN_STRING:
-      loads(target[x], m, i + x)
+      loads(target[x], m, i)
       inc(i)
     else:
-      loads(target[x], m, i + x  * tok.size)
+      loads(target[x], m, i)
       inc(i, tok.size)
     inc(x)
 
@@ -149,6 +162,8 @@ proc loads(target: var JsonNode, m: Mapper, idx: int) {.inline.} =
 
 proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
   ## Deserialize a JSON string to `target`
+  when defined(verbose):
+    debugEcho m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
   assert m.tokens[pos].kind == JSMN_OBJECT
   var
     i = pos + 1
@@ -167,9 +182,12 @@ proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
         if n == key:
           match = true
           try:
-            loads(v, m, i+1)
+            when compiles(loads(v, m, i+1)):
+              loads(v, m, i + 1)
           except:
-            raise newException(ValueError, "invalid data for: " & n)
+            when defined(verbose):
+              echo tok, getValue(m.tokens[i+1], m.json)
+            raise newException(ValueError, "error while parsing " & n & ", reason: " & getCurrentExceptionMsg())
           break
       if match:
         inc(i, tok.size+2)
@@ -194,7 +212,7 @@ proc loads*(target: var auto, json: string) =
   loads(target, mapper)
 
 proc parse*(json: string): JsonNode =
-  ## Parse JSON string and returns a `JsonNode`
+  # Parse JSON string and returns a `JsonNode`
   var mapper: Mapper
   mapper.tokens = jsmn.parseJson(json)
   mapper.numTokens = mapper.tokens.len
