@@ -48,6 +48,9 @@ template getValue*(t: JsmnToken, json: string): expr =
   ## Returns a string present of token ``t``
   json[t.start..<t.stop]
 
+proc `$`*(n: JsonNode): string =
+  getValue(n.mapper.tokens[n.pos], n.mapper.json)
+
 proc loads(target: var bool, m: Mapper, idx: int) {.inline.} =
   let value = m.tokens[idx].getValue(m.json)
   target = value[0] == 't'
@@ -99,8 +102,10 @@ proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
     case tok.kind
     of JSMN_PRIMITIVE, JSMN_STRING:
       loads(target[x], m, i + x)
+      inc(i)
     else:
       loads(target[x], m, i + x  * tok.size)
+      inc(i, tok.size)
     inc(x)
 
 template next(): expr {.immediate.} =
@@ -144,7 +149,6 @@ proc loads(target: var JsonNode, m: Mapper, idx: int) {.inline.} =
 
 proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
   ## Deserialize a JSON string to `target`
-  echo m.tokens[pos], ", ", getValue(m.tokens[pos], m.json)
   assert m.tokens[pos].kind == JSMN_OBJECT
   var
     i = pos + 1
