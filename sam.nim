@@ -91,9 +91,7 @@ proc loads[T: enum](target: var T, m: Mapper, idx: int) {.inline.} =
 
 proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
   assert m.tokens[idx].kind == JSMN_ARRAY
-  when T is array:
-    let size = target.len
-  else:
+  when T is seq:
     let size = m.tokens[idx].size
     if target.isNil:
       newSeq(target, m.tokens[idx].size)
@@ -120,17 +118,6 @@ proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
       loads(target[x], m, i)
       inc(i, tok.size)
     inc(x)
-
-template next(): expr {.immediate.} =
-  let next = tokens[i+1]
-  if (next.kind == JSMN_ARRAY or next.kind == JSMN_OBJECT) and next.size > 0:
-    let child = tokens[i+2]
-    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
-      inc(i, 1 + next.size * (child.size + 1))  # skip whole array or object
-    else:
-      inc(i, next.size + 2)
-  else:
-    inc(i, 2)
 
 iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.noSideEffect.} =
   var
@@ -317,19 +304,18 @@ iterator items*(n: JsonNode): JsonNode =
   ## Iterator for the items of an array node
   assert n.mapper.tokens[n.pos].kind == JSMN_ARRAY
   var
-    i = 0
+    i = n.pos + 1
     node = new(JsonNode)
-    tokens = n.mapper.tokens
+    count = n.mapper.tokens[n.pos].size
 
-  while i < n.mapper.tokens[n.pos].size:
-    let child = n.mapper.tokens[n.pos + 1]
-    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
-      node.pos = n.pos + 1 + (1 + child.size) * i
-    else:
-      node.pos = n.pos + i
-    node.mapper = n.mapper
-    yield node
-    next()
+  node.mapper = n.mapper
+
+  while count > 0:
+    if n.mapper.tokens[i].parent == n.pos:
+      dec(count)
+      node.pos = i
+      yield node
+    inc(i)
 
 iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
   ## Iterator for the child elements of an object node
@@ -339,21 +325,18 @@ iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
     tok: JsmnToken
     key: string
     val = new(JsonNode)
-  let
-    endPos = n.mapper.tokens[n.pos].stop
-    tokens = n.mapper.tokens
+    count = n.mapper.tokens[n.pos].size
 
-  while i < n.mapper.numTokens:
-    tok = n.mapper.tokens[i]
-    if tok.start >= endPos:
-      raise newException(FieldError, key & " is not accessible")
-
-    key = tok.getValue(n.mapper.json)
-    val.pos = i + 1
-    val.mapper = n.mapper
-    yield (key, val)
-
-    next()
+  val.mapper = n.mapper
+  while count > 0:
+    if n.mapper.tokens[i].parent == n.pos:
+      key = tok.getValue(n.mapper.json)
+      val.pos = i + 1
+      inc(i, 2)
+      dec(count, 2)
+      yield (key, val)
+    else:
+      inc(i)
 
 proc dumps*(t: auto, x: var string) =
   ## Serialize `t` into `x`
