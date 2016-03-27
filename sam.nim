@@ -92,7 +92,6 @@ proc loads[T: enum](target: var T, m: Mapper, idx: int) {.inline.} =
 proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
   assert m.tokens[idx].kind == JSMN_ARRAY
   when T is seq:
-    let size = m.tokens[idx].size
     if target.isNil:
       newSeq(target, m.tokens[idx].size)
 
