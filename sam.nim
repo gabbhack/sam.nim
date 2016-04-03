@@ -398,6 +398,7 @@ proc `%`*(x: auto): JsonRaw {.inline.} =
 
 proc stringify(x: NimNode, top = false): NimNode {.compileTime.} =
   var left, right: NimNode
+  echo x.kind
   case x.kind
   of nnkBracket:
     result = newNimNode(nnkBracket)
@@ -413,6 +414,10 @@ proc stringify(x: NimNode, top = false): NimNode {.compileTime.} =
         left = x[i][0]
       right = stringify(x[i][1])
       result.add(newNimNode(nnkExprColonExpr).add(left).add(right))
+  of nnkPar:
+    result = newNimNode(nnkBracket)
+    for i in 0 .. <x.len:
+      result.add prefix(stringify(x[i]), "%")
   else:
     result = x
   if top:
