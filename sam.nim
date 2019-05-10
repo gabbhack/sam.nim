@@ -71,7 +71,6 @@ proc findValue(m: Mapper, key: string, pos = 0): int {.noSideEffect.} =
       break
 
 proc loads(target: var any, m: Mapper, pos = 0) =
-  echo target.type
   when target.type is object or target.type is tuple:
     when defined(verbose):
       debugEcho "object ", m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
@@ -109,7 +108,6 @@ proc loads(target: var any, m: Mapper, pos = 0) =
   elif target.type is array or target.type is seq:
     assert m.tokens[pos].kind == JSMN_ARRAY
     when target.type is seq:
-      echo "seq size: ", m.tokens[pos].size
       newSeq(target, m.tokens[pos].size)
     var
       i = pos + 1
@@ -207,7 +205,6 @@ proc `[]`*(n: JsonNode, idx: int): JsonNode {.noSideEffect.} =
   else:
     var i = 0
     for child in n.mapper.children(n.pos):
-      debugEcho child
       if i == idx:
         result.pos = child.pos
       inc(i)
