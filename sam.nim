@@ -71,7 +71,8 @@ proc findValue(m: Mapper, key: string, pos = 0): int {.noSideEffect.} =
       break
 
 proc loads(target: var any, m: Mapper, pos = 0) =
-  when target.type is object:
+  echo target.type
+  when target.type is object or target.type is tuple:
     when defined(verbose):
       debugEcho "object ", m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
     assert m.tokens[pos].kind == JSMN_OBJECT
@@ -81,17 +82,16 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       count = m.tokens[pos].size
       key: string
       match: bool
-
     while count > 0:
       match = false
+      assert i <= m.numTokens
       tok = m.tokens[i]
+      assert tok.kind != JSMN_UNDEFINED
       when defined(verbose):
         echo "tok ", tok, " value: ", tok.getValue(m.json)
       if tok.parent == pos:
         assert tok.kind == JSMN_STRING
         key = tok.getValue(m.json)
-        when defined(verbose):
-          echo "key ", key
         for n, v in fieldPairs(target):
           if n == key:
             match = true
@@ -102,13 +102,14 @@ proc loads(target: var any, m: Mapper, pos = 0) =
         if match:
           inc(i, tok.size+1)
         else:
-          inc(i, 1)
-        dec(count, 1)
+          inc(i)
+        dec(count)
       else:
         inc(i)
   elif target.type is array or target.type is seq:
     assert m.tokens[pos].kind == JSMN_ARRAY
-    when target is seq:
+    when target.type is seq:
+      echo "seq size: ", m.tokens[pos].size
       newSeq(target, m.tokens[pos].size)
     var
       i = pos + 1
