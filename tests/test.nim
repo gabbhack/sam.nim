@@ -16,6 +16,7 @@ type
     published: bool
     watchers: seq[User]
     points: array[0..4, int]
+    completed: bool
 
   User = object
     name: string
@@ -43,8 +44,10 @@ t1.user = u1
 t1.published = false
 t1.points = [5,6,7,8,9]
 t1.watchers = @[u1, u2]
+t1.completed = true
 
 var js = $$t1
 echo js
 t2.loads(js)
 echo $$t2
+assert $$t2 == js

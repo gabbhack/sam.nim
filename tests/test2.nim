@@ -22,7 +22,6 @@ var s: Student
 s.name = "John Doe"
 s.age = 20
 s.points = @[1,2,3,4,5]
-#s.friends = @[f]
 
 var f1: Student
 echo dumps(s)

@@ -1,8 +1,5 @@
 # Copyright 2016 Huy Doan
 #
-# This file is a Nim fork of Jsmn: https://github.com/zserge/jsmn
-# Copyright (c) 2010 Serge A. Zaitsev
-#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -44,79 +41,12 @@ type
 
 {.push boundChecks: off, overflowChecks: off.}
 
-template getValue*(t: JsmnToken, json: string): expr =
+template getValue*(t: JsmnToken, json: string): untyped =
   ## Returns a string present of token ``t``
   json[t.start..<t.stop]
 
 proc `$`*(n: JsonNode): string =
   getValue(n.mapper.tokens[n.pos], n.mapper.json)
-
-proc loads(target: var bool, m: Mapper, idx: int) {.inline.} =
-  assert m.tokens[idx].kind == JSMN_PRIMITIVE
-  let value = m.tokens[idx].getValue(m.json)
-  target = value[0] == 't'
-
-proc loads(target: var char, m: Mapper, idx: int) {.inline.} =
-  assert m.tokens[idx].kind == JSMN_STRING
-  let value = m.tokens[idx].getValue(m.json)
-  if value.len > 0:
-    target = value[0]
-
-proc loads[T: SomeInteger|BiggestInt](target: var T, m: Mapper, idx: int) {.inline.} =
-  assert m.tokens[idx].kind == JSMN_PRIMITIVE
-  let value = m.tokens[idx].getValue(m.json)
-  when T is int:
-    target = parseInt(value)
-  else:
-    target = (T)parseInt(value)
-
-proc loads[T: SomeReal|BiggestFloat](target: var T, m: Mapper, idx: int) {.inline.} =
-  assert m.tokens[idx].kind == JSMN_PRIMITIVE
-  when T is float:
-    target = parseFloat(m.tokens[idx].getValue(m.json))
-  else:
-    target = (T)parseFloat(m.tokens[idx].getValue(m.json))
-
-proc loads(target: var string, m: Mapper, idx: int) {.inline.} =
-  if m.tokens[idx].kind == JSMN_STRING:
-    target = m.tokens[idx].getValue(m.json)
-
-proc loads[T: enum](target: var T, m: Mapper, idx: int) {.inline.} =
-  assert m.tokens[idx].kind == JSMN_STRING
-  let value = m.tokens[idx].getValue(m.json)
-  for e in low(T)..high(T):
-    if $e == value:
-      target = e
-      break
-
-proc loads[T: array|seq](target: var T, m: Mapper, idx: int) {.inline.} =
-  assert m.tokens[idx].kind == JSMN_ARRAY
-  when T is seq:
-    if target.isNil:
-      newSeq(target, m.tokens[idx].size)
-
-  var
-    i = idx + 1
-    x = 0
-    tok: JsmnToken
-    count = m.tokens[idx].size
-    kind = m.tokens[i].kind
-
-  while x < count:
-    tok = m.tokens[i]
-    when defined(verbose):
-      echo i, " ", tok.parent, " ", idx, " ", tok, " ", getValue(tok, m.json)
-    if tok.parent != idx:
-      inc(i)
-      continue
-    case kind
-    of JSMN_PRIMITIVE, JSMN_STRING:
-      loads(target[x], m, i)
-      inc(i)
-    else:
-      loads(target[x], m, i)
-      inc(i, tok.size)
-    inc(x)
 
 iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.noSideEffect.} =
   var
@@ -124,7 +54,7 @@ iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.no
     tok: JsmnToken
     count = m.tokens[parent].size
 
-  assert m.tokens[parent].kind == JSMN_OBJECT
+  assert m.tokens[parent].kind in {JSMN_OBJECT, JSMN_ARRAY}
   while count > 0:
     inc(i)
     tok = m.tokens[i]
@@ -133,68 +63,107 @@ iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.no
       yield (tok, i)
       dec(count)
 
-proc findValue(m: Mapper, key: string, pos = 0): int {.inline, noSideEffect.} =
+proc findValue(m: Mapper, key: string, pos = 0): int {.noSideEffect.} =
   result = -1
   for node in m.children(pos):
     if key == node.token.getValue(m.json):
       result = node.pos + 1
       break
 
-proc loads(target: var JsonNode, m: Mapper, idx: int) {.inline.} =
-  new(target)
-  target.mapper = m
-  target.pos = idx
+proc loads(target: var any, m: Mapper, pos = 0) =
+  when target.type is object:
+    when defined(verbose):
+      debugEcho "object ", m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
+    assert m.tokens[pos].kind == JSMN_OBJECT
+    var
+      i = pos + 1
+      tok: JsmnToken
+      count = m.tokens[pos].size
+      key: string
+      match: bool
 
-
-proc loads*[T: object|tuple](target: var T, m: Mapper, pos = 0) {.inline.} =
-  ## Deserialize a JSON string to `target`
-  when defined(verbose):
-    debugEcho m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
-  assert m.tokens[pos].kind == JSMN_OBJECT
-  var
-    i = pos + 1
-    tok: JsmnToken
-    count = m.tokens[pos].size
-    key: string
-    match: bool
-
-  while count > 0:
-    match = false
-    tok = m.tokens[i]
-    if tok.parent == pos:
-      assert tok.kind == JSMN_STRING
-      key = tok.getValue(m.json)
-      for n, v in fieldPairs(target):
-        if n == key:
-          match = true
-          try:
-            when compiles(loads(v, m, i+1)):
-              loads(v, m, i + 1)
-          except:
+    while count > 0:
+      match = false
+      tok = m.tokens[i]
+      when defined(verbose):
+        echo "tok ", tok, " value: ", tok.getValue(m.json)
+      if tok.parent == pos:
+        assert tok.kind == JSMN_STRING
+        key = tok.getValue(m.json)
+        when defined(verbose):
+          echo "key ", key
+        for n, v in fieldPairs(target):
+          if n == key:
+            match = true
             when defined(verbose):
-              echo tok, getValue(m.tokens[i+1], m.json)
-            raise newException(ValueError, "error while parsing " & n & ", reason: " & getCurrentExceptionMsg())
-          break
-      if match:
-        inc(i, tok.size+2)
+              echo "i ", i, " ", m.tokens[i+1].getValue(m.json)
+            loads(v, m, i+1)
+            break
+        if match:
+          inc(i, tok.size+1)
+        else:
+          inc(i, 1)
+        dec(count, 1)
       else:
-        inc(i, 2)
-      dec(count, 2)
-    else:
+        inc(i)
+  elif target.type is array or target.type is seq:
+    assert m.tokens[pos].kind == JSMN_ARRAY
+    when target is seq:
+      newSeq(target, m.tokens[pos].size)
+    var
+      i = pos + 1
+      x = 0
+      tok: JsmnToken
+      count = m.tokens[pos].size
+
+    while x < count:
+      tok = m.tokens[i]
+      when defined(verbose):
+        echo "array ", i, " ", tok.parent, " ", pos, " ", tok, " ", getValue(tok, m.json)
+      if tok.parent != pos:
+        inc(i)
+        continue
+      loads(target[x], m, i)
       inc(i)
+      inc(x)
+  elif target.type is int:
+    assert m.tokens[pos].kind == JSMN_PRIMITIVE
+    let value = m.tokens[pos].getValue(m.json)
+    target = parseInt(value)
+  elif target.type is string:
+    assert m.tokens[pos].kind == JSMN_STRING or m.tokens[pos].getValue(m.json) == "null"
+    if m.tokens[pos].kind == JSMN_STRING:
+      target = m.tokens[pos].getValue(m.json)
+  elif target.type is bool:
+    assert m.tokens[pos].kind == JSMN_PRIMITIVE
+    let value = m.tokens[pos].getValue(m.json)
+    target = value[0] == 't'
+  elif target.type is float:
+    assert m.tokens[pos].kind == JSMN_PRIMITIVE
+    target = parseFloat(m.tokens[pos].getValue(m.json))
+  elif target.type is char:
+    assert m.tokens[pos].kind == JSMN_STRING
+    let value = m.tokens[pos].getValue(m.json)
+    if value.len > 0:
+      target = value[0]
+  elif target.type is enum:
+    assert m.tokens[pos].kind == JSMN_STRING
+    let value = m.tokens[pos].getValue(m.json)
+    for e in low(target.type)..high(target.type):
+      if $e == value:
+        target = e
+        break
+  elif target.type is ref:
+    loads(target[], m, pos)
+  else:
+    raise newException(KeyError, "unsupported type: " & $target.type)
 
-proc loads*[T: ref](target: T, m: Mapper, pos = 0) {.inline.} =
-  loads(target[], m, pos)
-
-proc loads*(target: var auto, n: JsonNode) {.inline.} =
-  loads(target, n.mapper, n.pos)
-
-proc loads*(target: var auto, json: string) =
+proc loads*(target: var any, json: string) =
   var mapper: Mapper
   mapper.tokens = jsmn.parseJson(json)
   mapper.numTokens = mapper.tokens.len
   mapper.json = json
-  mapper.stack = @[]
+
   loads(target, mapper)
 
 proc parse*(json: string): JsonNode =
@@ -203,7 +172,6 @@ proc parse*(json: string): JsonNode =
   mapper.tokens = jsmn.parseJson(json)
   mapper.numTokens = mapper.tokens.len
   mapper.json = json
-  mapper.stack = @[]
 
   new(result)
   result.mapper = mapper
@@ -214,33 +182,39 @@ proc parse*(json: string, tokens: seq[JsmnToken], numTokens: int): JsonNode =
   mapper.tokens = tokens
   mapper.numTokens = numTokens
   mapper.json = json
-  mapper.stack = @[]
 
   new(result)
   result.mapper = mapper
 
-proc `[]`*(n: JsonNode, key: string): JsonNode {.inline, noSideEffect.} =
+proc `[]`*(n: JsonNode, key: string): JsonNode {.noSideEffect.} =
   ## Get a field from a json object, raises `FieldError` if field does not exists
   assert n.mapper.tokens[n.pos].kind == JSMN_OBJECT
   n.mapper.stack.add(n.pos)
   result = n
   result.pos = n.mapper.findValue(key, n.pos)
 
-proc `[]`*(n: JsonNode, idx: int): JsonNode {.inline, noSideEffect.} =
+proc `[]`*(n: JsonNode, idx: int): JsonNode {.noSideEffect.} =
   ## Get a field from json array, raises `IndexError` if array is empty or index out of bounds
   assert n.mapper.tokens[n.pos].kind == JSMN_ARRAY
   n.mapper.stack.add(n.pos)
   result = n
   if n.mapper.tokens[n.pos].size <= 0:
     raise newException(IndexError, "index out of bounds")
-  let child = n.mapper.tokens[n.pos + 1]
+
   if idx == 0:
     result.pos = n.pos + 1
   else:
-    if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
-      result.pos = n.pos + 1 + (1 + child.size) * idx
-    else:
-      result.pos = n.pos + idx
+    var i = 0
+    for child in n.mapper.children(n.pos):
+      debugEcho child
+      if i == idx:
+        result.pos = child.pos
+      inc(i)
+
+      #if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
+      #  result.pos = n.pos + 1 + (1 + child.size) * idx
+      #else:
+      #  result.pos = n.pos + idx
 
 proc `{}`*(n: JsonNode, i: int): JsonNode {.inline.} =
   ## Traveral back the selection stack
@@ -352,7 +326,7 @@ proc dumps*(t: auto, x: var string) =
       dumps(v, x)
     x.add "}"
   elif t is string:
-    if t == nil:
+    if t.len == 0:
         x.add "null"
         return
     x.add escapeJson(t)
@@ -398,15 +372,14 @@ proc `%`*(x: auto): JsonRaw {.inline.} =
 
 proc stringify(x: NimNode, top = false): NimNode {.compileTime.} =
   var left, right: NimNode
-  echo x.kind
   case x.kind
   of nnkBracket:
     result = newNimNode(nnkBracket)
-    for i in 0 .. <x.len:
+    for i in 0 .. x.len-1:
       result.add(stringify(x[i]))
   of nnkTableConstr:
     result = newNimNode(nnkPar)
-    for i in 0 .. <x.len:
+    for i in 0 .. x.len-1:
       assert x[i].kind == nnkExprColonExpr
       if x[i][0].kind == nnkStrLit:
         left = newIdentNode(strVal(x[i][0]))
@@ -416,14 +389,14 @@ proc stringify(x: NimNode, top = false): NimNode {.compileTime.} =
       result.add(newNimNode(nnkExprColonExpr).add(left).add(right))
   of nnkPar:
     result = newNimNode(nnkBracket)
-    for i in 0 .. <x.len:
+    for i in 0 .. x.len-1:
       result.add prefix(stringify(x[i]), "%")
   else:
     result = x
   if top:
     result = newCall(newIdentNode("dumps"), result)
 
-macro `$$`*(x: expr): expr =
+macro `$$`*(x: untyped): untyped =
   ## Convert anything to a json stirng
   stringify(x, true)
 
