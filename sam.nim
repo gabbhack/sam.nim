@@ -24,20 +24,20 @@
 ##
 
 import jsmn, strutils, macros
-from json import escapeJson
 
 type
   Mapper = object
     tokens: seq[JsmnToken]
     json: string
     numTokens: int
-    stack: seq[int]
 
   JsonNode* = ref object
     mapper: Mapper
     pos: int
 
   JsonRaw* {.borrow: `.`.} = distinct string
+
+  NamingConverter = proc(input: string): string
 
 {.push boundChecks: off, overflowChecks: off.}
 
@@ -125,7 +125,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       loads(target[x], m, i)
       inc(i)
       inc(x)
-  elif target.type is int:
+  elif target.type is SomeInteger:
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
     let value = m.tokens[pos].getValue(m.json)
     target = parseInt(value)
@@ -137,7 +137,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
     let value = m.tokens[pos].getValue(m.json)
     target = value[0] == 't'
-  elif target.type is float:
+  elif target.type is SomeFloat:
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
     target = parseFloat(m.tokens[pos].getValue(m.json))
   elif target.type is char:
@@ -185,18 +185,16 @@ proc parse*(json: string, tokens: seq[JsmnToken], numTokens: int): JsonNode =
   new(result)
   result.mapper = mapper
 
-proc `[]`*(n: JsonNode, key: string): JsonNode {.noSideEffect.} =
+func `[]`*(n: JsonNode, key: string): JsonNode {.noSideEffect.} =
   ## Get a field from a json object, raises `FieldError` if field does not exists
   assert n.mapper.tokens[n.pos].kind == JSMN_OBJECT
-  n.mapper.stack.add(n.pos)
-  result = n
+  result = deepCopy(n)
   result.pos = n.mapper.findValue(key, n.pos)
 
-proc `[]`*(n: JsonNode, idx: int): JsonNode {.noSideEffect.} =
+func `[]`*(n: JsonNode, idx: int): JsonNode {.noSideEffect.} =
   ## Get a field from json array, raises `IndexError` if array is empty or index out of bounds
   assert n.mapper.tokens[n.pos].kind == JSMN_ARRAY
-  n.mapper.stack.add(n.pos)
-  result = n
+  result = deepCopy(n)
   if n.mapper.tokens[n.pos].size <= 0:
     raise newException(IndexError, "index out of bounds")
 
@@ -209,33 +207,12 @@ proc `[]`*(n: JsonNode, idx: int): JsonNode {.noSideEffect.} =
         result.pos = child.pos
       inc(i)
 
-      #if child.kind == JSMN_ARRAY or child.kind == JSMN_OBJECT:
-      #  result.pos = n.pos + 1 + (1 + child.size) * idx
-      #else:
-      #  result.pos = n.pos + idx
-
-proc `{}`*(n: JsonNode, i: int): JsonNode {.inline.} =
-  ## Traveral back the selection stack
-  var
-    i = i
-    pos: int
-  while i > 0:
-    pos = n.mapper.stack.pop()
-    dec(i)
-  result = n
-  result.pos = pos
-
-proc `{}`*(n: JsonNode): JsonNode {.inline.} =
-  ## Return the root node
-  result = n
-  result.pos = 0
-
-proc len*(n: JsonNode): int =
+func len*(n: JsonNode): int =
   ## Returns the number of elements in a json array
   assert n.mapper.tokens[n.pos].kind == JSMN_ARRAY
   n.mapper.tokens[n.pos].size
 
-proc hasKey*(n: JsonNode, key: string): bool =
+func hasKey*(n: JsonNode, key: string): bool =
   ## Checks if field exists in object
   assert n.mapper.tokens[n.pos].kind == JSMN_OBJECT
   var pos = -1
@@ -245,31 +222,32 @@ proc hasKey*(n: JsonNode, key: string): bool =
     discard
   result = pos >= n.pos
 
-proc toStr*(node: JsonNode): string {.inline.} =
+func toStr*(node: JsonNode): string {.inline.} =
   ## Retrieves the string value of a JSMN_STRING node
   assert node.mapper.tokens[node.pos].kind == JSMN_STRING
   loads(result, node.mapper, node.pos)
 
-proc toInt*(node: JsonNode): int {.inline.} =
+func toInt*(node: JsonNode): int {.inline.} =
   ## Retrieves the int value of a JSMN_PRIMITIVE node
   assert node.mapper.tokens[node.pos].kind == JSMN_PRIMITIVE
   loads(result, node.mapper, node.pos)
 
-proc toFloat*(node: JsonNode): float {.inline.} =
+func toFloat*(node: JsonNode): float {.inline.} =
   ## Retrieves the float value of a JSMN_PRIMITIVE node
   assert node.mapper.tokens[node.pos].kind == JSMN_PRIMITIVE
   loads(result, node.mapper, node.pos)
 
-proc toBool*(node: JsonNode): bool {.inline.} =
+func toBool*(node: JsonNode): bool {.inline.} =
   ## Retrieves the bool value of a JSMN_PRIMITIVE node
   assert node.mapper.tokens[node.pos].kind == JSMN_PRIMITIVE
   loads(result, node.mapper, node.pos)
 
-proc toObj*[T](n: JsonNode): T =
+func toObj*[T](node: JsonNode): T =
   ## Map a JSMN_OBJECT node into a Nim object
   when result is ref:
     new(result)
-  loads(result, n.mapper, n.pos)
+  loads(result, node.mapper, node.pos)
+
 
 iterator items*(n: JsonNode): JsonNode =
   ## Iterator for the items of an array node
@@ -309,7 +287,19 @@ iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
     else:
       inc(i)
 
-proc dumps*(t: auto, x: var string) =
+proc addslashes*(s: string, prefix = "\"", suffix = "\""): string {.inline, noSideEffect, extern: "nsuEscape".} =
+  ## A modified version of `strutils.escape` <strutils.html#escape,string,string,string>`_
+  result = newStringOfCap(s.len + s.len shr 2)
+  result.add(prefix)
+  for c in items(s):
+    case c
+    of '\\': add(result, "\\\\")
+    of '\'': add(result, "\\'")
+    of '\"': add(result, "\\\"")
+    else: add(result, c)
+  add(result, suffix)
+
+proc dumps*(t: auto, x: var string, namingConverter: NamingConverter = nil) =
   ## Serialize `t` into `x`
   when t is object or t is tuple:
     var first = true
@@ -319,7 +309,10 @@ proc dumps*(t: auto, x: var string) =
         first = false
       else:
         x.add ","
-      x.add "\"" & n & "\""
+      if namingConverter != nil:
+        x.add "\"" & namingConverter(n) & "\""
+      else:
+        x.add "\"" & n & "\""
       x.add ":"
       dumps(v, x)
     x.add "}"
@@ -327,7 +320,7 @@ proc dumps*(t: auto, x: var string) =
     if t.len == 0:
         x.add "null"
         return
-    x.add escapeJson(t)
+    x.add addslashes(t)
   elif t is char:
     x.add "\"" & $t & "\""
   elif t is bool:
@@ -359,10 +352,10 @@ proc dumps*(t: auto, x: var string) =
   else:
     x.add $t
 
-proc dumps*(t: auto): string =
+proc dumps*(t: auto, namingConverter: NamingConverter = nil): string =
   ## Serialize `t` to a JSON formatted
   result = newStringOfCap(sizeof(t) shl 1)
-  dumps(t, result)
+  dumps(t, result, namingConverter)
 
 proc `%`*(x: auto): JsonRaw {.inline.} =
   ## Convert `x` to a raw json string (JsonRaw is not wrapped when added to json string)

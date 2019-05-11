@@ -29,7 +29,7 @@ echo dumps(s)
 var k: Student
 k.loads(js)
 
-f1 = toObj[Student](j{}["friends"][0])
+f1 = toObj[Student](j["friends"][0])
 echo "f1: ", dumps(f1)
 
 echo getTotalMem(), ", ", getOccupiedMem(), ", ", getFreeMem()
