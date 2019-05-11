@@ -157,18 +157,18 @@ proc loads(target: var any, m: Mapper, pos = 0) =
   else:
     raise newException(KeyError, "unsupported type: " & $target.type)
 
-proc loads*(target: var any, json: string) =
+proc loads*(target: var any, json: string, bufferSize = 256) =
   var mapper: Mapper
-  mapper.tokens = jsmn.parseJson(json)
+  mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
   mapper.numTokens = mapper.tokens.len
   mapper.json = json
 
   loads(target, mapper)
 
-proc parse*(json: string): JsonNode =
+proc parse*(json: string, bufferSize = 256): JsonNode =
   # Parse JSON string and returns a `JsonNode`
   var mapper: Mapper
-  mapper.tokens = jsmn.parseJson(json)
+  mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
   mapper.numTokens = mapper.tokens.len
   mapper.json = json
 
