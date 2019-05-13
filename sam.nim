@@ -29,7 +29,6 @@ type
   Mapper = object
     tokens: seq[JsmnToken]
     json: string
-    numTokens: int
 
   JsonNode* = ref object
     mapper: Mapper
@@ -41,12 +40,11 @@ type
 
 {.push boundChecks: off, overflowChecks: off.}
 
-template getValue*(t: JsmnToken, json: string): untyped =
+template getValue(t: JsmnToken, json: string): untyped =
   ## Returns a string present of token ``t``
   json[t.start..<t.stop]
 
-proc `$`*(n: JsonNode): string =
-  getValue(n.mapper.tokens[n.pos], n.mapper.json)
+proc `$`*(n: JsonNode): string = getValue(n.mapper.tokens[n.pos], n.mapper.json)
 
 iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.noSideEffect.} =
   var
@@ -83,7 +81,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       match: bool
     while count > 0:
       match = false
-      assert i <= m.numTokens
+      assert i <= m.tokens.len
       tok = m.tokens[i]
       assert tok.kind != JSMN_UNDEFINED
       when defined(verbose):
@@ -160,8 +158,8 @@ proc loads(target: var any, m: Mapper, pos = 0) =
 proc loads*(target: var any, json: string, bufferSize = 256) =
   var mapper: Mapper
   mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
-  mapper.numTokens = mapper.tokens.len
   mapper.json = json
+  shallow(mapper.json)
 
   loads(target, mapper)
 
@@ -169,18 +167,18 @@ proc parse*(json: string, bufferSize = 256): JsonNode =
   # Parse JSON string and returns a `JsonNode`
   var mapper: Mapper
   mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
-  mapper.numTokens = mapper.tokens.len
   mapper.json = json
-
+  shallow(mapper.json)
+  
   new(result)
   result.mapper = mapper
 
-proc parse*(json: string, tokens: seq[JsmnToken], numTokens: int): JsonNode =
+proc parse*(json: string, tokens: seq[JsmnToken]): JsonNode =
   ## Load a parsed JSON tokens and returns a `JsonNode`
   var mapper: Mapper
   mapper.tokens = tokens
-  mapper.numTokens = numTokens
   mapper.json = json
+  shallow(mapper.json)
 
   new(result)
   result.mapper = mapper
@@ -188,13 +186,16 @@ proc parse*(json: string, tokens: seq[JsmnToken], numTokens: int): JsonNode =
 func `[]`*(n: JsonNode, key: string): JsonNode {.noSideEffect.} =
   ## Get a field from a json object, raises `FieldError` if field does not exists
   assert n.mapper.tokens[n.pos].kind == JSMN_OBJECT
-  result = deepCopy(n)
+  new(result)
+  result.mapper = n.mapper
   result.pos = n.mapper.findValue(key, n.pos)
 
 func `[]`*(n: JsonNode, idx: int): JsonNode {.noSideEffect.} =
   ## Get a field from json array, raises `IndexError` if array is empty or index out of bounds
   assert n.mapper.tokens[n.pos].kind == JSMN_ARRAY
-  result = deepCopy(n)
+  new(result)
+  result.mapper = n.mapper
+
   if n.mapper.tokens[n.pos].size <= 0:
     raise newException(IndexError, "index out of bounds")
 
@@ -220,7 +221,7 @@ func hasKey*(n: JsonNode, key: string): bool =
     pos = n.mapper.findValue(key, n.pos)
   except FieldError:
     discard
-  result = pos >= n.pos
+  result = pos > n.pos
 
 func toStr*(node: JsonNode): string {.inline.} =
   ## Retrieves the string value of a JSMN_STRING node
@@ -248,23 +249,21 @@ func toObj*[T](node: JsonNode): T =
     new(result)
   loads(result, node.mapper, node.pos)
 
-
 iterator items*(n: JsonNode): JsonNode =
   ## Iterator for the items of an array node
   assert n.mapper.tokens[n.pos].kind == JSMN_ARRAY
   var
-    i = n.pos + 1
-    node = new(JsonNode)
+    i = n.pos
     count = n.mapper.tokens[n.pos].size
 
-  node.mapper = n.mapper
-
   while count > 0:
+    inc(i)
     if n.mapper.tokens[i].parent == n.pos:
       dec(count)
+      var node = new JsonNode
+      node.mapper = n.mapper
       node.pos = i
       yield node
-    inc(i)
 
 iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
   ## Iterator for the child elements of an object node
@@ -388,7 +387,7 @@ proc stringify(x: NimNode, top = false): NimNode {.compileTime.} =
     result = newCall(newIdentNode("dumps"), result)
 
 macro `$$`*(x: untyped): untyped =
-  ## Convert anything to a json stirng
+  ## Convert anything to a json string
   stringify(x, true)
 
 {.pop.}

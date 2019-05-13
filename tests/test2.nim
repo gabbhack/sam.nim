@@ -23,7 +23,7 @@ s.name = "John Doe"
 s.age = 20
 s.points = @[1,2,3,4,5]
 
-var f1: Student
+var f1, f2: Student
 echo dumps(s)
 
 var k: Student
@@ -32,4 +32,11 @@ k.loads(js)
 f1 = toObj[Student](j["friends"][0])
 echo "f1: ", dumps(f1)
 
+var friends = j["friends"]
+
+f2 = toObj[Student](friends[0])
+
+assert f1 == f2
+
+echo "f2: ", dumps(f2)
 echo getTotalMem(), ", ", getOccupiedMem(), ", ", getFreeMem()
