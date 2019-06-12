@@ -70,6 +70,7 @@ proc findValue(m: Mapper, key: string, pos = 0): int {.noSideEffect.} =
       break
 
 proc loads(target: var any, m: Mapper, pos = 0) =
+  if pos < 0: return
   when target.type is object or target.type is tuple:
     when defined(verbose):
       debugEcho "object ", m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
@@ -129,6 +130,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
     let value = m.tokens[pos].getValue(m.json)
     target = parseInt(value)
   elif target.type is string:
+    debugEcho m.tokens[pos], " ", m.tokens[pos].getValue(m.json)
     assert m.tokens[pos].kind == JSMN_STRING or m.tokens[pos].getValue(m.json) == "null"
     if m.tokens[pos].kind == JSMN_STRING:
       target = unescape(m.tokens[pos].getValue(m.json), "", "")
@@ -310,7 +312,7 @@ proc dumps*(t: auto, x: var string, namingConverter: NamingConverter = nil) =
     if t.len == 0:
         x.add "null"
         return
-    x.add escapeString(t)
+    x.add "\"" & escapeString(t) & "\""
   elif t is char:
     x.add "\"" & $t & "\""
   elif t is bool:
