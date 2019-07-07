@@ -130,7 +130,6 @@ proc loads(target: var any, m: Mapper, pos = 0) =
     let value = m.tokens[pos].getValue(m.json)
     target = parseInt(value)
   elif target.type is string:
-    debugEcho m.tokens[pos], " ", m.tokens[pos].getValue(m.json)
     assert m.tokens[pos].kind == JSMN_STRING or m.tokens[pos].getValue(m.json) == "null"
     if m.tokens[pos].kind == JSMN_STRING:
       target = unescape(m.tokens[pos].getValue(m.json), "", "")
