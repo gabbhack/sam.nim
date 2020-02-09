@@ -14,8 +14,8 @@ proc escapeString*(s: string): string =
       of '\\':
         case buf[pos+1]
         of '\\', '"', '\'', '/':
-          add(result, buf[pos+1])
-          inc(pos, 2)
+          add(result, buf[pos])
+          inc(pos, 1)
         of 'b':
           add(result, '\b')
           inc(pos, 2)

@@ -5,3 +5,6 @@ assert escapeString(fish) == "This is a 🐟, yes a fish"
 
 
 assert escapeString("Test\"") == r"Test"""
+assert escapeString("\\/") == r"\/"
+assert escapeString("\babc") == "\babc"
+assert escapeString("this is a newline\\nabc") == "this is a newline\nabc"
