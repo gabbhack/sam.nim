@@ -128,7 +128,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
   elif target.type is SomeInteger:
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
     let value = m.tokens[pos].getValue(m.json)
-    target = parseInt(value)
+    target = cast[type(target)](parseInt(value))
   elif target.type is string:
     assert m.tokens[pos].kind == JSMN_STRING or m.tokens[pos].getValue(m.json) == "null"
     if m.tokens[pos].kind == JSMN_STRING:
