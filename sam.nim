@@ -23,7 +23,7 @@
 ##  nimble install sam
 ##
 
-import jsmn, strutils, macros
+import jsmn, strutils, macros, options
 import sam/utils
 
 type
@@ -71,7 +71,14 @@ proc findValue(m: Mapper, key: string, pos = 0): int {.noSideEffect.} =
 
 proc loads(target: var any, m: Mapper, pos = 0) =
   if pos < 0: return
-  when target.type is object or target.type is tuple:
+  when target.type is Option:
+    if m.tokens[pos].getValue(m.json) == "null":
+      target = none(target.get.type)
+    else:
+      var t: target.get.type
+      loads(t, m, pos)
+      target = some(t)
+  elif target.type is object or target.type is tuple:
     when defined(verbose):
       debugEcho "object ", m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
     assert m.tokens[pos].kind == JSMN_OBJECT
@@ -292,7 +299,12 @@ iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
 
 proc dumps*(t: auto, x: var string, namingConverter: NamingConverter = nil) =
   ## Serialize `t` into `x`
-  when t is object or t is tuple:
+  when t is Option:
+    if t.isSome():
+      dumps(t.get(), x, namingConverter)
+    else:
+      x.add "null"
+  elif t is object or t is tuple:
     var first = true
     x.add "{"
     for n, v in fieldPairs(t):
