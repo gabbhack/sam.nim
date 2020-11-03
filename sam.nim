@@ -27,7 +27,7 @@ import jsmn, strutils, macros, options
 import sam/utils
 
 type
-  Mapper = object
+  Mapper = ref object
     tokens: seq[JsmnToken]
     json: string
 
@@ -169,32 +169,27 @@ proc loads(target: var any, m: Mapper, pos = 0) =
     raise newException(KeyError, "unsupported type: " & $target.type)
 
 proc loads*(target: var any, json: string, bufferSize = 256) =
-  var mapper: Mapper
+  var mapper = new(Mapper)
   mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
   mapper.json = json
-  shallow(mapper.json)
 
   loads(target, mapper)
 
 proc parse*(json: string, bufferSize = 256): JsonNode =
   # Parse JSON string and returns a `JsonNode`
-  var mapper: Mapper
-  mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
-  mapper.json = json
-  shallow(mapper.json)
-
   new(result)
-  result.mapper = mapper
+  result.mapper = new(Mapper)
+  result.mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
+  result.mapper.json = json
+
 
 proc parse*(json: string, tokens: seq[JsmnToken]): JsonNode =
   ## Load a parsed JSON tokens and returns a `JsonNode`
-  var mapper: Mapper
-  mapper.tokens = tokens
-  mapper.json = json
-  shallow(mapper.json)
-
   new(result)
-  result.mapper = mapper
+  result.mapper = new(Mapper)
+  result.mapper.tokens = tokens
+  result.mapper.json = json
+
 
 func `[]`*(n: JsonNode, key: string): JsonNode {.noSideEffect.} =
   ## Get a field from a json object, raises `FieldError` if field does not exists
@@ -316,7 +311,7 @@ proc dumps*(t: auto, x: var string, namingConverter: NamingConverter = nil) =
         first = false
       else:
         x.add ","
-      if namingConverter != nil:
+      if likely(namingConverter != nil):
         x.add "\"" & namingConverter(n) & "\""
       else:
         x.add "\"" & n & "\""
@@ -400,14 +395,14 @@ macro `$$`*(x: untyped): untyped =
 
 {.pop.}
 
-proc isObject*(n: JsonNode): bool =
+func isObject*(n: JsonNode): bool =
   n.mapper.tokens[n.pos].kind == JSMN_OBJECT
 
-proc isArray*(n: JsonNode): bool =
+func isArray*(n: JsonNode): bool =
   n.mapper.tokens[n.pos].kind == JSMN_ARRAY
 
-proc isString*(n: JsonNode): bool =
+func isString*(n: JsonNode): bool =
   n.mapper.tokens[n.pos].kind == JSMN_STRING
 
-proc isPrimitive*(n: JsonNode): bool =
+func isPrimitive*(n: JsonNode): bool =
   n.mapper.tokens[n.pos].kind == JSMN_PRIMITIVE
