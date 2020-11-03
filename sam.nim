@@ -99,7 +99,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       assert tok.kind != JSMN_UNDEFINED
       when defined(verbose):
         echo "tok ", tok, " value: ", tok.getValue(m.json)
-      if tok.parent == pos:
+      if likely(tok.parent == pos):
         assert tok.kind == JSMN_STRING
         key = tok.getValue(m.json)
         for n, v in fieldPairs(target):
@@ -130,7 +130,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       tok = m.tokens[i]
       when defined(verbose):
         echo "array ", i, " ", tok.parent, " ", pos, " ", tok, " ", getValue(tok, m.json)
-      if tok.parent != pos:
+      if unlikely(tok.parent != pos):
         inc(i)
         continue
       loads(target[x], m, i)
@@ -146,16 +146,15 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       target = unescape(m.tokens[pos].getValue(m.json), "", "")
   elif target is bool:
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
-    let value = m.tokens[pos].getValue(m.json)
-    target = value[0] == 't'
+    target = m.json[m.tokens[pos].start] == 't'
   elif target is SomeFloat:
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
     target = parseFloat(m.tokens[pos].getValue(m.json))
   elif target is char:
     assert m.tokens[pos].kind == JSMN_STRING
-    let value = m.tokens[pos].getValue(m.json)
-    if value.len > 0:
-      target = value[0]
+    assert m.tokens[pos].start <  m.tokens[pos].stop
+    if likely(m.tokens[pos].start < m.tokens[pos].stop):
+      target = m.json[m.tokens[pos].start]
   elif target is enum:
     assert m.tokens[pos].kind == JSMN_STRING
     let value = m.tokens[pos].getValue(m.json)
@@ -307,7 +306,7 @@ proc dumps*(t: auto, x: var string, namingConverter: NamingConverter = nil) =
     var first = true
     x.add "{"
     for n, v in fieldPairs(t):
-      if first:
+      if unlikely(first):
         first = false
       else:
         x.add ","
