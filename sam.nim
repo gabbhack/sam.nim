@@ -71,14 +71,18 @@ proc findValue(m: Mapper, key: string, pos = 0): int {.noSideEffect.} =
 
 proc loads(target: var any, m: Mapper, pos = 0) =
   if pos < 0: return
-  when target.type is Option:
+  when target is Option:
     if m.tokens[pos].getValue(m.json) == "null":
       target = none(target.get.type)
     else:
       var t: target.get.type
       loads(t, m, pos)
       target = some(t)
-  elif target.type is object or target.type is tuple:
+  elif target is ref:
+    if target == nil:
+      new(target)
+    loads(target[], m, pos)
+  elif target is object or target is tuple:
     when defined(verbose):
       debugEcho "object ", m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
     assert m.tokens[pos].kind == JSMN_OBJECT
@@ -112,9 +116,9 @@ proc loads(target: var any, m: Mapper, pos = 0) =
         dec(count)
       else:
         inc(i)
-  elif target.type is array or target.type is seq:
+  elif target is array or target is seq:
     assert m.tokens[pos].kind == JSMN_ARRAY
-    when target.type is seq:
+    when target is seq:
       newSeq(target, m.tokens[pos].size)
     var
       i = pos + 1
@@ -132,34 +136,34 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       loads(target[x], m, i)
       inc(i)
       inc(x)
-  elif target.type is SomeInteger:
+  elif target is SomeInteger:
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
     let value = m.tokens[pos].getValue(m.json)
-    target = cast[type(target)](parseInt(value))
-  elif target.type is string:
+    target = cast[target.type](parseInt(value))
+  elif target is string:
     assert m.tokens[pos].kind == JSMN_STRING or m.tokens[pos].getValue(m.json) == "null"
     if m.tokens[pos].kind == JSMN_STRING:
       target = unescape(m.tokens[pos].getValue(m.json), "", "")
-  elif target.type is bool:
+  elif target is bool:
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
     let value = m.tokens[pos].getValue(m.json)
     target = value[0] == 't'
-  elif target.type is SomeFloat:
+  elif target is SomeFloat:
     assert m.tokens[pos].kind == JSMN_PRIMITIVE
     target = parseFloat(m.tokens[pos].getValue(m.json))
-  elif target.type is char:
+  elif target is char:
     assert m.tokens[pos].kind == JSMN_STRING
     let value = m.tokens[pos].getValue(m.json)
     if value.len > 0:
       target = value[0]
-  elif target.type is enum:
+  elif target is enum:
     assert m.tokens[pos].kind == JSMN_STRING
     let value = m.tokens[pos].getValue(m.json)
     for e in low(target.type)..high(target.type):
       if $e == value:
         target = e
         break
-  elif target.type is ref:
+  elif target is ref:
     loads(target[], m, pos)
   else:
     raise newException(KeyError, "unsupported type: " & $target.type)
@@ -206,7 +210,7 @@ func `[]`*(n: JsonNode, idx: int): JsonNode {.noSideEffect.} =
   result.mapper = n.mapper
 
   if n.mapper.tokens[n.pos].size <= 0:
-    raise newException(IndexError, "index out of bounds")
+    raise newException(IndexDefect, "index out of bounds")
 
   if idx == 0:
     result.pos = n.pos + 1
@@ -228,7 +232,7 @@ func hasKey*(n: JsonNode, key: string): bool =
   var pos = -1
   try:
     pos = n.mapper.findValue(key, n.pos)
-  except FieldError:
+  except FieldDefect:
     discard
   result = pos > n.pos
 
