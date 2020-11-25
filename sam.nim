@@ -39,6 +39,11 @@ type
 
   NamingConverter = proc(input: string): string
 
+when (NimMajor, NimMinor, NimPatch) < (1, 4, 0):
+  type
+    IndexDefect* = IndexError
+    FieldDefect* = FieldError
+
 {.push boundChecks: off, overflowChecks: off.}
 
 template getValue(t: JsmnToken, json: string): untyped =

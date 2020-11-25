@@ -1,4 +1,4 @@
-import ../sam, strutils
+import ../sam
 
 var sub = {
   "method": "POST",

@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.15"
+version       = "0.1.16"
 author        = "Huy Doan"
 description   = "Fast and just works JSON-Binding for Nim"
 license       = "MIT"
@@ -8,5 +8,4 @@ license       = "MIT"
 skipDirs      = @["tests"]
 
 # Dependencies
-requires "nim >= 0.20"
-requires "jsmn >= 0.2"
+requires "nim >= 0.20, jsmn >= 0.2"
