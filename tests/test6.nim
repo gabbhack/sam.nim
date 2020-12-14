@@ -1,5 +1,5 @@
 import macros
-import deser_json
+import ../deser_json
 
 type
   Foo = ref object
