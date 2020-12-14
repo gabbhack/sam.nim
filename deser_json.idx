@@ -1,0 +1,25 @@
+Installation	deser_json.html#installation	 Installation	
+JsonNode	deser_json.html#JsonNode	deser_json: JsonNode	
+JsonRaw	deser_json.html#JsonRaw	deser_json: JsonRaw	
+`$`	deser_json.html#$,JsonNode	deser_json: `$`(n: JsonNode): string	
+loads	deser_json.html#loads,any,string,int	deser_json: loads(target: var any; json: string; bufferSize = 256)	
+parse	deser_json.html#parse,string,int	deser_json: parse(json: string; bufferSize = 256): JsonNode	
+parse	deser_json.html#parse,string,seq[JsmnToken]	deser_json: parse(json: string; tokens: seq[JsmnToken]): JsonNode	
+`[]`	deser_json.html#[],JsonNode,string	deser_json: `[]`(n: JsonNode; key: string): JsonNode	
+`[]`	deser_json.html#[],JsonNode,int	deser_json: `[]`(n: JsonNode; idx: int): JsonNode	
+len	deser_json.html#len,JsonNode	deser_json: len(n: JsonNode): int	
+hasKey	deser_json.html#hasKey,JsonNode,string	deser_json: hasKey(n: JsonNode; key: string): bool	
+toStr	deser_json.html#toStr,JsonNode	deser_json: toStr(node: JsonNode): string	
+toInt	deser_json.html#toInt,JsonNode	deser_json: toInt(node: JsonNode): int	
+toFloat	deser_json.html#toFloat,JsonNode	deser_json: toFloat(node: JsonNode): float	
+toBool	deser_json.html#toBool,JsonNode	deser_json: toBool(node: JsonNode): bool	
+to	deser_json.html#to,JsonNode	deser_json: to[T](node: JsonNode): T	
+items	deser_json.html#items.i,JsonNode	deser_json: items(n: JsonNode): JsonNode	
+pairs	deser_json.html#pairs.i,JsonNode	deser_json: pairs(n: JsonNode): tuple[key: string, val: JsonNode]	
+dumps	deser_json.html#dumps,auto,string	deser_json: dumps(t: auto; x: var string)	
+dumps	deser_json.html#dumps,auto	deser_json: dumps(t: auto): string	
+`%`	deser_json.html#%,auto	deser_json: `%`(x: auto): JsonRaw	
+isObject	deser_json.html#isObject,JsonNode	deser_json: isObject(n: JsonNode): bool	
+isArray	deser_json.html#isArray,JsonNode	deser_json: isArray(n: JsonNode): bool	
+isString	deser_json.html#isString,JsonNode	deser_json: isString(n: JsonNode): bool	
+isPrimitive	deser_json.html#isPrimitive,JsonNode	deser_json: isPrimitive(n: JsonNode): bool	
