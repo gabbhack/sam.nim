@@ -1,4 +1,3 @@
-Installation	deser_json.html#installation	 Installation	
 JsonNode	deser_json.html#JsonNode	deser_json: JsonNode	
 JsonRaw	deser_json.html#JsonRaw	deser_json: JsonRaw	
 `$`	deser_json.html#$,JsonNode	deser_json: `$`(n: JsonNode): string	
