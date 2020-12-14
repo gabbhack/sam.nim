@@ -1,5 +1,5 @@
 import macros
-import sam
+import deser_json
 
 type
   Foo = ref object

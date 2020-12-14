@@ -8,7 +8,7 @@ license       = "MIT"
 skipDirs      = @["tests"]
 
 # Dependencies
-requires "nim >= 1.4.2, jsmn >= 0.2, deser >= 0.1.1"
+requires "nim >= 1.4.2, jsmn >= 0.2, deser >= 0.1.2"
 
 # Tasks
 
