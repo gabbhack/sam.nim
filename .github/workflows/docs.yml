@@ -1,0 +1,43 @@
+name: Build docs
+
+on:
+  push:
+    branches:
+      - master
+  release:
+    types: [published]
+
+jobs:
+  build:
+    if: "! contains(toJSON(github.event.commits.*.message), '[skip-docs]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache nimble
+        id: cache-nimble
+        uses: actions/cache@v1
+        with:
+          path: ~/.nimble
+          key: ${{ runner.os }}-nimble-${{ hashFiles('*.nimble') }}
+        if: runner.os != 'Windows'
+
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: stable
+
+      - name: Install dependencies
+        run: nimble install -d -y
+      
+      - name: Run tests
+        run: nimble test
+      
+      - name: Build docs
+        run: nimble docs
+      
+      - name: Deploy docs
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs

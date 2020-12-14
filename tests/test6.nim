@@ -1,8 +1,16 @@
-import ../sam
+import macros
+import sam
 
 type
-    Bar = object
-        id: int32
-var b1, b2: Bar
-b1.id = 123
-b2.loads($$b1)
+  Foo = ref object
+    text: string
+  Test = object
+    foo: Foo
+
+let json = """{"foo":{"text":"123"}}"""
+
+var t: Test
+# new t.foo
+loads(t, json)
+assert t.foo.text == "123"
+assert t.dumps() == json

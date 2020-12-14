@@ -1,33 +1,10 @@
-import ../sam
+import ../deser_json/utils
 
-var sub = {
-  "method": "POST",
-  "path": "/hello"
-}
-
-echo $${"default": true, "requests": {"method": "POST"}}
-echo $${"default": true, "requests": sub}
-echo $${"method": "POST"}
-
-var
-  a = 1
-  b = "asd"
-
-echo $$(a, b)
-echo $$[1,2,3,4]
-
-echo "====================================="
+var fish = "This is a \\ud83d\\udc1f, yes a fish"
+assert escapeString(fish) == "This is a 🐟, yes a fish"
 
 
-let json = "{ \"a\": [1, 2, 3, 4], \"b\": \"asd \\\"\", \"c\": \"\\ud83c\\udf83\", \"d\": \"\\u00E6\"}"
-echo json
-
-let testJson = parse(json)
-
-
-
-# make sure UTF-16 decoding works.
-echo testJson["b"].toStr
-echo testJson["c"].toStr
-doAssert(testJson["c"].toStr == "🎃")
-doAssert(testJson["d"].toStr == "æ")
+assert escapeString("Test\"") == r"Test"""
+assert escapeString("\\/") == r"\/"
+assert escapeString("\babc") == "\babc"
+assert escapeString("this is a newline\\nabc") == "this is a newline\nabc"

@@ -1,4 +1,5 @@
-import ../sam
+import macros
+import ../deser_json
 
 type
   Student = object
@@ -7,6 +8,7 @@ type
     points: seq[int]
     friends: seq[Student]
     x: array[2, int]
+
 let js = """{"name": "John ", "age": 30, "points": [], "friends": [{"name": "Bob 😂😐😱❤️😩🤞🏿🤞🏿🙏"}, {"name": "Peter", "age": 8}]}"""
 
 var j = parse(js)

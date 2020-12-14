@@ -1,4 +1,5 @@
-import ../sam
+import macros
+import ../deser_json
 
 type
   Status = enum
@@ -46,8 +47,8 @@ t1.points = [5,6,7,8,9]
 t1.watchers = @[u1, u2]
 t1.completed = true
 
-var js = $$t1
+var js = t1.dumps()
 echo js
 t2.loads(js)
-echo $$t2
-assert $$t2 == js
+echo t2.dumps()
+assert t2.dumps() == js

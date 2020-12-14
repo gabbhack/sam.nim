@@ -1,10 +1,18 @@
-import ../sam/utils
+import macros, options
+import ../deser_json
 
-var fish = "This is a \\ud83d\\udc1f, yes a fish"
-assert escapeString(fish) == "This is a 🐟, yes a fish"
+type
+  Foo = object
+    bar: string
+  Test = object
+    foo: Option[Foo]
 
-
-assert escapeString("Test\"") == r"Test"""
-assert escapeString("\\/") == r"\/"
-assert escapeString("\babc") == "\babc"
-assert escapeString("this is a newline\\nabc") == "this is a newline\nabc"
+var t: Test
+var b = Test(foo: some(Foo(bar: "123")))
+loads(t, """{"foo": {"bar": "123"}}""")
+assert t == b
+assert t.dumps() == """{"foo":{"bar":"123"}}"""
+t.foo = none(Foo)
+assert t.dumps() == """{"foo":null}"""
+var a = to[Test](t.dumps().parse())
+assert a.foo.isNone()

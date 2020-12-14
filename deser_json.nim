@@ -1,4 +1,5 @@
 # Copyright 2016 Huy Doan
+# Copyright 2020 Gabbasov "gabbhack" Nikita
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +25,8 @@
 ##
 
 import jsmn, strutils, macros, options
-import sam/utils
+import deser
+import deser_json/utils
 
 type
   Mapper = ref object
@@ -37,7 +39,6 @@ type
 
   JsonRaw* {.borrow: `.`.} = distinct string
 
-  NamingConverter = proc(input: string): string
 
 when (NimMajor, NimMinor, NimPatch) < (1, 4, 0):
   type
@@ -77,17 +78,14 @@ proc findValue(m: Mapper, key: string, pos = 0): int {.noSideEffect.} =
 proc loads(target: var any, m: Mapper, pos = 0) =
   if pos < 0: return
   when target is Option:
-    if m.tokens[pos].getValue(m.json) == "null":
-      target = none(target.get.type)
-    else:
+    if m.tokens[pos].getValue(m.json) != "null":
       var t: target.get.type
       loads(t, m, pos)
       target = some(t)
-  elif target is ref:
-    if target == nil:
-      new(target)
-    loads(target[], m, pos)
-  elif target is object or target is tuple:
+  elif target is object | tuple | ref:
+    when target is ref:
+      if target == nil:
+        new(target)
     when defined(verbose):
       debugEcho "object ", m.tokens[pos], " ", getValue(m.tokens[pos], m.json)
     assert m.tokens[pos].kind == JSMN_OBJECT
@@ -107,7 +105,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       if likely(tok.parent == pos):
         assert tok.kind == JSMN_STRING
         key = tok.getValue(m.json)
-        for n, v in fieldPairs(target):
+        forDesFields(n, v, target):
           if n == key:
             match = true
             when defined(verbose):
@@ -167,8 +165,6 @@ proc loads(target: var any, m: Mapper, pos = 0) =
       if $e == value:
         target = e
         break
-  elif target is ref:
-    loads(target[], m, pos)
   else:
     raise newException(KeyError, "unsupported type: " & $target.type)
 
@@ -186,14 +182,12 @@ proc parse*(json: string, bufferSize = 256): JsonNode =
   result.mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
   result.mapper.json = json
 
-
 proc parse*(json: string, tokens: seq[JsmnToken]): JsonNode =
   ## Load a parsed JSON tokens and returns a `JsonNode`
   new(result)
   result.mapper = new(Mapper)
   result.mapper.tokens = tokens
   result.mapper.json = json
-
 
 func `[]`*(n: JsonNode, key: string): JsonNode {.noSideEffect.} =
   ## Get a field from a json object, raises `FieldError` if field does not exists
@@ -300,25 +294,22 @@ iterator pairs*(n: JsonNode): tuple[key: string, val: JsonNode] =
     else:
       inc(i)
 
-proc dumps*(t: auto, x: var string, namingConverter: NamingConverter = nil) =
+proc dumps*(t: auto, x: var string) =
   ## Serialize `t` into `x`
   when t is Option:
     if t.isSome():
-      dumps(t.get(), x, namingConverter)
+      dumps(t.get(), x)
     else:
       x.add "null"
-  elif t is object or t is tuple:
+  elif t is object | tuple | ref:
     var first = true
     x.add "{"
-    for n, v in fieldPairs(t):
+    forSerFields(n, v, t):
       if unlikely(first):
         first = false
       else:
         x.add ","
-      if likely(namingConverter != nil):
-        x.add "\"" & namingConverter(n) & "\""
-      else:
-        x.add "\"" & n & "\""
+      x.add "\"" & n & "\""
       x.add ":"
       dumps(v, x)
     x.add "}"
@@ -348,54 +339,21 @@ proc dumps*(t: auto, x: var string, namingConverter: NamingConverter = nil) =
         x.add ","
       dumps(e, x)
     x.add "]"
-
   elif t is enum:
     x.add "\"" & $t & "\""
-  elif t is ref or t is pointer:
-    dumps(t[], x)
   elif t is JsonRaw:
     x.add t.string
   else:
     x.add $t
 
-proc dumps*(t: auto, namingConverter: NamingConverter = nil): string =
+proc dumps*(t: auto): string =
   ## Serialize `t` to a JSON formatted
   result = newStringOfCap(sizeof(t) shl 1)
-  dumps(t, result, namingConverter)
+  dumps(t, result)
 
 proc `%`*(x: auto): JsonRaw {.inline.} =
   ## Convert `x` to a raw json string (JsonRaw is not wrapped when added to json string)
   (JsonRaw)dumps(x)
-
-proc stringify(x: NimNode, top = false): NimNode {.compileTime.} =
-  var left, right: NimNode
-  case x.kind
-  of nnkBracket:
-    result = newNimNode(nnkBracket)
-    for i in 0 .. x.len-1:
-      result.add(stringify(x[i]))
-  of nnkTableConstr:
-    result = newNimNode(nnkPar)
-    for i in 0 .. x.len-1:
-      assert x[i].kind == nnkExprColonExpr
-      if x[i][0].kind == nnkStrLit:
-        left = newIdentNode(strVal(x[i][0]))
-      else:
-        left = x[i][0]
-      right = stringify(x[i][1])
-      result.add(newNimNode(nnkExprColonExpr).add(left).add(right))
-  of nnkPar:
-    result = newNimNode(nnkBracket)
-    for i in 0 .. x.len-1:
-      result.add prefix(stringify(x[i]), "%")
-  else:
-    result = x
-  if top:
-    result = newCall(newIdentNode("dumps"), result)
-
-macro `$$`*(x: untyped): untyped =
-  ## Convert anything to a json string
-  stringify(x, true)
 
 {.pop.}
 
