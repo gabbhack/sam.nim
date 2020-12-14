@@ -13,17 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-## Fast and just works JSON-Binding for Nim (requires `Jsmn <https://github.com/OpenSystemsLab/jsmn.nim>`_)
-##
-## This module is to celebrate 100 days old of Sam - my second princess
-##
-## Installation
-## ============
-##.. code-block::
-##  nimble install sam
-##
-
 import jsmn, strutils, macros, options
 import deser
 import deser_json/utils
