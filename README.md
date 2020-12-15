@@ -7,13 +7,13 @@
 
 ## Installation
 ```
-nimble install https://github.com/gabbhack/deser_json
+nimble install deser_json
 ```
 
 or
 
 ```nim
-requires "nim >= 1.4.2, https://github.com/gabbhack/deser_json >= 0.2.0"
+requires "nim >= 1.4.2, deser_json >= 0.2.1"
 ```
 
 ## Usage
