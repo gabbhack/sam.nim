@@ -14,5 +14,5 @@ assert t == b
 assert t.dumps() == """{"foo":{"bar":"123"}}"""
 t.foo = none(Foo)
 assert t.dumps() == """{"foo":null}"""
-var a = to[Test](t.dumps().parse())
+var a  = t.dumps().parse().to(Test)
 assert a.foo.isNone()

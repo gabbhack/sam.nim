@@ -240,7 +240,7 @@ func toBool*(node: JsonNode): bool {.inline.} =
   assert node.mapper.tokens[node.pos].kind == JSMN_PRIMITIVE
   loads(result, node.mapper, node.pos)
 
-func to*[T](node: JsonNode): T =
+func to*(node: JsonNode, T: typedesc): T =
   ## Map a JSMN_OBJECT node into a Nim object
   when result is ref:
     new(result)
