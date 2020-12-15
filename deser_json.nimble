@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.0"
+version       = "0.2.1"
 author        = "gabbhack"
 description   = "JSON-Binding for deser"
 license       = "MIT"
@@ -8,7 +8,7 @@ license       = "MIT"
 skipDirs      = @["tests"]
 
 # Dependencies
-requires "nim >= 1.4.2, jsmn >= 0.2, deser >= 0.1.2"
+requires "nim >= 1.4.2, jsmn >= 0.2, deser >= 0.1.3"
 
 # Tasks
 
