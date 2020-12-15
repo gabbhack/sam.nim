@@ -7,7 +7,7 @@
 
 ## Installation
 ```
-nimble install github.com/gabbhack/deser_json
+nimble install https://github.com/gabbhack/deser_json
 ```
 
 or
