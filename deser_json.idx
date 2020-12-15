@@ -12,7 +12,7 @@ toStr	deser_json.html#toStr,JsonNode	deser_json: toStr(node: JsonNode): string
 toInt	deser_json.html#toInt,JsonNode	deser_json: toInt(node: JsonNode): int	
 toFloat	deser_json.html#toFloat,JsonNode	deser_json: toFloat(node: JsonNode): float	
 toBool	deser_json.html#toBool,JsonNode	deser_json: toBool(node: JsonNode): bool	
-to	deser_json.html#to,JsonNode	deser_json: to[T](node: JsonNode): T	
+to	deser_json.html#to,JsonNode,typedesc	deser_json: to(node: JsonNode; T: typedesc): T:type	
 items	deser_json.html#items.i,JsonNode	deser_json: items(n: JsonNode): JsonNode	
 pairs	deser_json.html#pairs.i,JsonNode	deser_json: pairs(n: JsonNode): tuple[key: string, val: JsonNode]	
 dumps	deser_json.html#dumps,auto,string	deser_json: dumps(t: auto; x: var string)	
