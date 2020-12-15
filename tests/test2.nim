@@ -31,13 +31,13 @@ echo dumps(s)
 var k: Student
 k.loads(js)
 
-f1 = to[Student](j["friends"][0])
+f1 = j["friends"][0].to(Student)
 echo "f1 ", j
 echo "f1: ", dumps(f1)
 
 var friends = j["friends"]
 
-f2 = to[Student](friends[0])
+f2 = friends[0].to(Student)
 
 assert f1 == f2
 
