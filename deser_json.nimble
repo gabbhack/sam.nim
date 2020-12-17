@@ -1,3 +1,5 @@
+import strformat
+
 # Package
 
 version       = "0.2.1"
@@ -11,6 +13,13 @@ skipDirs      = @["tests"]
 requires "nim >= 1.4.2, jsmn >= 0.2, deser >= 0.1.3"
 
 # Tasks
+
+task pretty, "Pretty source code":
+  echo "Pretty deser_json"
+  exec "nimpretty deser_json --indent:2"
+  for i in listFiles("deser_json"):
+    echo fmt"Pretty {i}"
+    exec fmt"nimpretty {i} --indent:2"
 
 task test, "Run tests":
   exec "nim check deser_json"

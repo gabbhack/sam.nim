@@ -42,7 +42,8 @@ template getValue(t: JsmnToken, json: string): untyped =
 
 proc `$`*(n: JsonNode): string = getValue(n.mapper.tokens[n.pos], n.mapper.json)
 
-iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.noSideEffect.} =
+iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.
+    noSideEffect.} =
   var
     i = parent
     tok: JsmnToken
@@ -121,7 +122,8 @@ proc loads(target: var any, m: Mapper, pos = 0) =
     while x < count:
       tok = m.tokens[i]
       when defined(verbose):
-        echo "array ", i, " ", tok.parent, " ", pos, " ", tok, " ", getValue(tok, m.json)
+        echo "array ", i, " ", tok.parent, " ", pos, " ", tok, " ", getValue(
+            tok, m.json)
       if unlikely(tok.parent != pos):
         inc(i)
         continue
@@ -133,7 +135,8 @@ proc loads(target: var any, m: Mapper, pos = 0) =
     let value = m.tokens[pos].getValue(m.json)
     target = cast[target.type](parseInt(value))
   elif target is string:
-    assert m.tokens[pos].kind == JSMN_STRING or m.tokens[pos].getValue(m.json) == "null"
+    assert m.tokens[pos].kind == JSMN_STRING or m.tokens[pos].getValue(
+        m.json) == "null"
     if m.tokens[pos].kind == JSMN_STRING:
       target = unescape(m.tokens[pos].getValue(m.json), "", "")
   elif target is bool:
@@ -144,7 +147,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
     target = parseFloat(m.tokens[pos].getValue(m.json))
   elif target is char:
     assert m.tokens[pos].kind == JSMN_STRING
-    assert m.tokens[pos].start <  m.tokens[pos].stop
+    assert m.tokens[pos].start < m.tokens[pos].stop
     if likely(m.tokens[pos].start < m.tokens[pos].stop):
       target = m.json[m.tokens[pos].start]
   elif target is enum:
@@ -159,7 +162,7 @@ proc loads(target: var any, m: Mapper, pos = 0) =
 
 proc loads*(target: var any, json: string, bufferSize = 256) =
   var mapper = new(Mapper)
-  mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
+  mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize = true)
   mapper.json = json
 
   loads(target, mapper)
@@ -168,7 +171,7 @@ proc parse*(json: string, bufferSize = 256): JsonNode =
   # Parse JSON string and returns a `JsonNode`
   new(result)
   result.mapper = new(Mapper)
-  result.mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize=true)
+  result.mapper.tokens = jsmn.parseJson(json, bufferSize, autoResize = true)
   result.mapper.json = json
 
 proc parse*(json: string, tokens: seq[JsmnToken]): JsonNode =
@@ -304,8 +307,8 @@ proc dumps*(t: auto, x: var string) =
     x.add "}"
   elif t is string:
     if t.len == 0:
-        x.add "null"
-        return
+      x.add "null"
+      return
     x.add "\"" & escapeString(t) & "\""
   elif t is char:
     x.add "\"" & $t & "\""
@@ -317,9 +320,9 @@ proc dumps*(t: auto, x: var string) =
   elif t is array or t is seq:
     var first = true
     when compiles(t == nil):
-        if t == nil:
-          x.add "null"
-          return
+      if t == nil:
+        x.add "null"
+        return
     x.add "["
     for e in t:
       if first:
