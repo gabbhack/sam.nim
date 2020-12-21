@@ -76,3 +76,6 @@ let f = Foo(id: 123, text: "Hello")
 echo f.dumps()
 ```
 
+## Acknowledgements
+
+* Original [sam.nim](https://github.com/OpenSystemsLab/sam.nim/)
