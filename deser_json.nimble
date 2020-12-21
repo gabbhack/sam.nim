@@ -27,6 +27,6 @@ task test, "Run tests":
 
 task docs, "Generate docs":
   rmDir "docs"
-  exec "nimble doc2 --outdir:docs --project --index:on deser_json"
+  exec "nimble doc2 --outdir:docs --project --git.url:https://github.com/gabbhack/deser_json --git.commit:master --index:on deser_json"
   exec "testament html"
   mvFile("testresults.html", "docs/testresults.html")
