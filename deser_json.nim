@@ -58,7 +58,7 @@ iterator children(m: Mapper, parent = 0): tuple[token: JsmnToken, pos: int] {.
       yield (tok, i)
       dec(count)
 
-proc findValue(m: Mapper, key: string, pos = 0): int {.noSideEffect.} =
+func findValue(m: Mapper, key: string, pos = 0): int =
   result = -1
   for node in m.children(pos):
     if key == node.token.getValue(m.json):
