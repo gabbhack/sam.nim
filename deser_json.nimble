@@ -34,7 +34,6 @@ task pretty, "Pretty source code":
     exec fmt"nimpretty {i} --indent:2"
 
 task test, "Run tests":
-  exec "nim check deser_json"
   exec """testament p "tests/*.nim""""
 
 task docs, "Generate docs":
