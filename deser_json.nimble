@@ -13,11 +13,23 @@ skipDirs      = @["tests"]
 requires "nim >= 1.4.2, jsmn >= 0.2, deser >= 0.1.3"
 
 # Tasks
+import strformat, strutils, sequtils
+
+proc recursiveListFiles(dir: string, l: var seq[string]) =
+  for i in listDirs(dir):
+    recursiveListFiles(i, l)
+
+  for i in listFiles(dir):
+    if i.endsWith(".nim"):
+      l.add(i)
+
+proc recursiveListFiles(dir: string): seq[string] =
+  recursiveListFiles(dir, result)
 
 task pretty, "Pretty source code":
-  echo "Pretty deser_json"
+  echo "Pretty deser_json.nim"
   exec "nimpretty deser_json --indent:2"
-  for i in listFiles("deser_json"):
+  for i in concat(recursiveListFiles("deser_json"), recursiveListFiles("tests")):
     echo fmt"Pretty {i}"
     exec fmt"nimpretty {i} --indent:2"
 

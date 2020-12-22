@@ -23,7 +23,7 @@ f.points = @[]
 var s: Student
 s.name = "John Doe"
 s.age = 20
-s.points = @[1,2,3,4,5]
+s.points = @[1, 2, 3, 4, 5]
 
 var f1, f2: Student
 echo dumps(s)

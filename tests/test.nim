@@ -43,7 +43,7 @@ t1.tags = ["test", "blah"]
 t1.categories = @["works", "urgent"]
 t1.user = u1
 t1.published = true
-t1.points = [5,6,7,8,9]
+t1.points = [5, 6, 7, 8, 9]
 t1.watchers = @[u1, u2]
 t1.completed = true
 
